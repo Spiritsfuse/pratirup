@@ -1,0 +1,250 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ tokens
+   Colours are space-separated RGB triplets so Tailwind can apply opacity.
+   Light is the default; dark follows the OS unless a manual theme is set
+   (data-theme on <html>). */
+:root {
+  --bg: 245 247 248;
+  --surface: 255 255 255;
+  --ink: 21 35 42;
+  --muted: 86 103 111;
+  --line: 219 227 231;
+  --accent: 13 95 115;
+  --accent-soft: 225 239 242;
+  --vlow: 142 31 22;
+  --low: 192 57 43;
+  --inrange: 46 139 87;
+  --high: 201 138 0;
+  --vhigh: 210 105 30;
+  --pastfc: 90 163 181;
+  --scenario: 107 76 154;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: 15 23 27;
+    --surface: 21 33 39;
+    --ink: 227 235 238;
+    --muted: 154 170 178;
+    --line: 39 56 64;
+    --accent: 92 192 214;
+    --accent-soft: 23 52 60;
+    --vlow: 233 84 70;
+    --low: 241 145 132;
+    --inrange: 63 174 112;
+    --high: 226 168 38;
+    --vhigh: 232 130 70;
+    --pastfc: 90 163 181;
+    --scenario: 183 154 224;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: 15 23 27;
+  --surface: 21 33 39;
+  --ink: 227 235 238;
+  --muted: 154 170 178;
+  --line: 39 56 64;
+  --accent: 92 192 214;
+  --accent-soft: 23 52 60;
+  --vlow: 233 84 70;
+  --low: 241 145 132;
+  --inrange: 63 174 112;
+  --high: 226 168 38;
+  --vhigh: 232 130 70;
+  --pastfc: 90 163 181;
+  --scenario: 183 154 224;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-base text-ink antialiased;
+    margin: 0;
+    min-width: 320px;
+    overflow-x: hidden;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-semibold text-ink;
+    letter-spacing: -0.005em;
+  }
+  a {
+    @apply text-accent;
+    text-underline-offset: 2px;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+  }
+  table {
+    border-collapse: collapse;
+  }
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
+  }
+}
+
+@layer components {
+  /* numbers: mono, tabular */
+  .num {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
+  }
+  .card {
+    @apply rounded-lg border border-line bg-surface;
+  }
+  .section-title {
+    @apply text-xs font-semibold uppercase text-muted;
+    letter-spacing: 0.06em;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded border border-line px-1.5 py-px text-xs text-muted;
+  }
+  .btn {
+    @apply inline-flex min-h-[34px] items-center justify-center gap-1.5 rounded-md border border-line bg-surface px-3 text-sm font-medium text-ink;
+    cursor: pointer;
+    transition: background-color 120ms, border-color 120ms;
+  }
+  .btn:hover:not(:disabled) {
+    @apply border-muted/60 bg-bg;
+  }
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-surface;
+  }
+  .btn-primary:hover:not(:disabled) {
+    @apply border-accent bg-accent opacity-90;
+  }
+  .btn-icon {
+    @apply inline-flex h-[34px] w-[34px] items-center justify-center rounded-md border border-line bg-surface text-ink;
+    cursor: pointer;
+  }
+  .btn-icon:hover:not(:disabled) {
+    @apply bg-bg;
+  }
+  .btn-icon:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+  .tbl {
+    @apply w-full text-sm;
+  }
+  .tbl th {
+    @apply whitespace-nowrap border-b border-line px-3 py-2 text-left text-xs font-semibold text-muted;
+  }
+  .tbl td {
+    @apply border-b border-line/70 px-3 py-2 align-top;
+  }
+  .tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .tbl .r {
+    @apply text-right;
+  }
+  .scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .skeleton {
+    @apply rounded bg-line/70;
+    animation: pulse-soft 1.4s ease-in-out infinite;
+  }
+  .hatch {
+    background-image: repeating-linear-gradient(
+      135deg,
+      rgb(var(--scenario) / 0.55) 0,
+      rgb(var(--scenario) / 0.55) 2px,
+      transparent 2px,
+      transparent 6px
+    );
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes live-ping {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.live-dot {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: rgb(var(--low));
+}
+.live-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgb(var(--low));
+  animation: live-ping 1.6s ease-out infinite;
+}
+
+/* range inputs: restrained, accent-coloured */
+input[type='range'] {
+  accent-color: rgb(var(--accent));
+  cursor: pointer;
+}
+select {
+  @apply rounded-md border border-line bg-surface px-2 text-sm text-ink;
+  min-height: 34px;
+}
+
+/* Recharts tweaks */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}
+.recharts-cartesian-axis-tick-value {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .live-dot::after {
+    display: none;
+  }
+}
