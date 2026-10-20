@@ -128,7 +128,7 @@ def record_to_bundle(rec: pd.Series) -> dict:
                 "status": "active",
                 "subject": {"reference": f"Patient/{pid}"},
                 "category": {"text": label},
-                "medication": {"concept": {"text": text}},
+                "medicationCodeableConcept": {"text": text},
             })
     smoking = _num(rec.get("smoking_pack_years"))
     entries.append({

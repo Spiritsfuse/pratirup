@@ -105,7 +105,6 @@ def recording_summary(rec: pd.Series) -> dict:
         "complications": split(rec["complications_micro"]) + split(rec["complications_macro"]),
         "comorbidities": split(rec["comorbidities"]),
         "source": "ShanghaiT2DM (de-identified research record, CC BY 4.0)",
-        "original_start": str(rec["start_ts"]),
     }
 
 
@@ -123,7 +122,16 @@ class Store:
         self.tables = {n: pd.read_parquet(DATA_PROCESSED / f"shanghai_{n}.parquet")
                        for n in ("recordings", "cgm", "events", "fingersticks")}
         self.split = json.loads((DATA_PROCESSED / "split.json").read_text())
+        self._purge_live()
         self._build_if_needed()
+
+    def _purge_live(self) -> None:
+        """Live sessions are ephemeral: their twins live in memory and die with the process."""
+        with self.lock, self.conn:
+            live = [r[0] for r in self.conn.execute("SELECT rid FROM recording WHERE mode='live'")]
+            for rid in live:
+                for t in ("observation", "event", "twin_state", "forecast", "fingerstick", "recording"):
+                    self.conn.execute(f"DELETE FROM {t} WHERE rid=?", (rid,))
 
     # ------------------------------------------------------------------
     def _fingerprint(self) -> str:
@@ -133,6 +141,10 @@ class Store:
                 h.update(p.read_bytes())
         h.update((DATA_PROCESSED / "manifest.json").read_bytes())
         h.update((DATA_PROCESSED / "split.json").read_bytes())
+        # Code that shapes stored rows (features, engine, FHIR) also invalidates the cache.
+        pkg = Path(__file__).resolve().parents[1]
+        for p in sorted(pkg.rglob("*.py")):
+            h.update(p.read_bytes())
         return h.hexdigest()[:16]
 
     def replay_recordings(self) -> pd.DataFrame:
