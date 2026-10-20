@@ -1,0 +1,21 @@
+{
+  "source": "ShanghaiT2DM (Zhao et al., Sci Data 2023), figshare 21600933 v5, CC BY 4.0",
+  "tables": {
+    "recordings": {
+      "rows": 109,
+      "hash": "d26fad67b2ea705a"
+    },
+    "cgm": {
+      "rows": 112462,
+      "hash": "e28cf4e95c1c5a06"
+    },
+    "fingersticks": {
+      "rows": 3269,
+      "hash": "1dff7f17e8f6a023"
+    },
+    "events": {
+      "rows": 8471,
+      "hash": "5608a478c4852536"
+    }
+  }
+}

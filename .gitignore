@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Raw third-party data is downloaded by `python -m pratirup.cli download`
+data/raw/
+
+# Runtime state
+*.sqlite3
+*.db
+var/
+
+# Frontend
+web/node_modules/
+web/dist/
+web/.vite/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
