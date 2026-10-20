@@ -214,6 +214,7 @@ def run_dev() -> dict:
                                      d["fold"].to_numpy(), best_cfg)
             preds[f"lgbm[{name}]"] = g0 + cv.oof
             n_iters.setdefault(name, {})[h] = cv.n_iter
+        preds["ensemble[lgbm+gru]"] = 0.5 * (preds["lgbm[full]"] + preds["gru_seq"])
         # Conformalised quantile regression on the full feature set.
         q = {}
         for side, a in (("lo", ALPHA / 2), ("hi", 1 - ALPHA / 2)):
@@ -448,6 +449,7 @@ def run_test(reason: str | None = None) -> dict:
         for name, feats in FEATURE_SETS.items():
             preds[f"lgbm[{name}]"] = (d[f"yhat_{h}"].to_numpy() if name == "full"
                                       else g0 + ladder[(name, h)].predict(d[feats]))
+        preds["ensemble[lgbm+gru]"] = 0.5 * (preds["lgbm[full]"] + preds["gru_seq"])
         d["resid"] = y - preds["lgbm[full]"]
         pp = bundle.personal[h]
         bias = personal_bias(d, "resid", horizon_slots(h), pp["halflife"]) * pp["lambda"]
@@ -464,6 +466,7 @@ def run_test(reason: str | None = None) -> dict:
             for b in ("persistence", "kalman_trend", "ridge_ar", "gru_seq", "lgbm_cgm", "lgbm_cgm_events", "lgbm_cgm_events_ehr")
         }
         boot[h]["lgbm_full_personal_vs_lgbm_full"] = M.bootstrap_mae_diff(bf, "lgbm_full_personal", "lgbm_full")
+        boot[h]["ensemble_lgbm_gru_vs_lgbm_full"] = M.bootstrap_mae_diff(bf, "ensemble_lgbm_gru", "lgbm_full")
         pf = d[["recording_id", "patient_id", "slot", "ts", "g0"]].copy()
         pf["horizon"] = h
         pf["y"] = y

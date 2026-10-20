@@ -21,7 +21,12 @@ from torch import nn
 from pratirup.config import HORIZONS_MIN, LOOKBACK_SLOTS, SEED
 from pratirup.features import EVENT_FEATURES, PROFILE_FEATURES, STATIC_FEATURES, TIME_FEATURES
 
-CONTEXT_FEATURES = TIME_FEATURES + EVENT_FEATURES + PROFILE_FEATURES + STATIC_FEATURES
+# Selected by dev-only tuning (scripts/tune_gru.py, results/gru_tuning.json): with the
+# 38 clinical-record fields as context the GRU memorised patients and stopped after
+# 3-6 epochs; without them it generalised and matched LightGBM.
+CONTEXT_FEATURES = TIME_FEATURES + EVENT_FEATURES + PROFILE_FEATURES
+LR = 3e-4
+HIDDEN = 128
 SEQ_CHANNELS = 8
 Y_SCALE = 50.0
 
@@ -86,8 +91,8 @@ def _loss(pred: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
 
 
 def train(seq: np.ndarray, ctx: np.ndarray, y: np.ndarray, patients: np.ndarray,
-          max_epochs: int = 40, patience: int = 4, lr: float = 1e-3,
-          hidden: int = 64) -> tuple[GRUForecaster, Norm, int]:
+          max_epochs: int = 40, patience: int = 4, lr: float = LR,
+          hidden: int = HIDDEN) -> tuple[GRUForecaster, Norm, int]:
     torch.manual_seed(SEED)
     rng = np.random.default_rng(SEED)
     uniq = np.unique(patients)
@@ -133,8 +138,8 @@ def predict(model: GRUForecaster, norm: Norm, seq: np.ndarray, ctx: np.ndarray) 
     return out * Y_SCALE
 
 
-def cross_validate(series: dict, rows: pd.DataFrame, context: list[str] | None = None, lr: float = 1e-3,
-                   hidden: int = 64) -> tuple[np.ndarray, list[int]]:
+def cross_validate(series: dict, rows: pd.DataFrame, context: list[str] | None = None, lr: float = LR,
+                   hidden: int = HIDDEN) -> tuple[np.ndarray, list[int]]:
     """OOF predictions of dy for each horizon, shape (N, len(HORIZONS_MIN))."""
     seq = sequences(series, rows)
     ctx = rows[context or CONTEXT_FEATURES].to_numpy(dtype=np.float32)
@@ -158,12 +163,12 @@ def fit_final(series: dict, rows: pd.DataFrame) -> tuple[GRUForecaster, Norm]:
 
 
 def save(model: GRUForecaster, norm: Norm, path) -> None:
-    torch.save({"state": model.state_dict(), "mean": norm.mean, "std": norm.std,
+    torch.save({"state": model.state_dict(), "mean": norm.mean, "std": norm.std, "hidden": model.gru.hidden_size,
                 "n_ctx": len(CONTEXT_FEATURES), "context_features": CONTEXT_FEATURES}, path)
 
 
 def load(path) -> tuple[GRUForecaster, Norm]:
     ck = torch.load(path, weights_only=False)
-    m = GRUForecaster(ck["n_ctx"])
+    m = GRUForecaster(ck["n_ctx"], ck.get("hidden", HIDDEN))
     m.load_state_dict(ck["state"])
     return m, Norm(ck["mean"], ck["std"])
