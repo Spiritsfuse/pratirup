@@ -45,6 +45,13 @@ EVENT_LABEL = {"hyper": "Glucose likely to exceed 180 mg/dL within 60 min",
                "hypo": "Glucose likely to fall below 70 mg/dL within 60 min"}
 
 app = FastAPI(title="Pratirup API", version=__version__)
+
+
+@app.on_event("startup")
+def _warm_store() -> None:
+    """Build or open the database before the first request, not during it."""
+    store()
+
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
 _store: Store | None = None
@@ -278,7 +285,7 @@ def meta():
             "cgm": "Real CGM readings from held-out patients, replayed on a demo clock.",
             "forecast": "Model output. Experimental.",
             "sensitivity": "Model sensitivity to a changed input. Associational, not causal.",
-            "time_shift": "Wear days and clock times are real; calendar dates are hidden.",
+            "time_shift": "The demo clock shows real wear days and clock times. The raw FHIR record keeps the dataset's original dates.",
         },
         "demo_population": "20 held-out test patients the model never saw during training or tuning.",
     }
@@ -362,7 +369,7 @@ def twin(rid: str, t: int | None = None, window_h: int = 24, horizon: int = 60):
                                   "no_recent_data": "No reading in the last 30 min; forecasts are paused"}.get(status)
         return body
     slot = int(state["slot"])
-    n_ok = 12 - int(state["n_missing_3h"] or 0)
+    n_ok = s.one("SELECT COUNT(*) n FROM observation WHERE rid=? AND slot>? AND slot<=?", (rid, slot - 12, slot))["n"]
     body["state"] = {
         "slot": slot, "t": state["demo_min"], "glucose": _f(state["glucose"]),
         "kalman": {"level": _f(state["kf_level"]), "rate_mgdl_per_min": _f(state["kf_slope"]) / STEP_MIN if state["kf_slope"] is not None else None,
@@ -666,6 +673,8 @@ def live_stop(rid: str):
     if not sess:
         raise HTTPException(404, "No such live session")
     sess.stop.set()
+    if sess.thread:
+        sess.thread.join(timeout=5)
     return _live_summary(sess)
 
 
