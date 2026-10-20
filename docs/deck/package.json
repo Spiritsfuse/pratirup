@@ -1,0 +1,7 @@
+{
+  "name": "pratirup-deck",
+  "private": true,
+  "description": "Generates docs/Pratirup_Presentation.pptx from results/benchmark.json",
+  "scripts": { "build": "node build_deck.js" },
+  "dependencies": { "pptxgenjs": "3.12.0" }
+}

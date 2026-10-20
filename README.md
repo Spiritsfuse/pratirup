@@ -226,6 +226,9 @@ Wearable experiment (inside CGMacros, 5-fold participant-grouped CV): adding Fit
 
 ## The application
 
+![Worklist: patients ranked by consensus targets and predicted risk](docs/screenshots/worklist.png)
+![Patient twin: forecast band, past forecasts against what happened, twin state and drivers](docs/screenshots/twin.png)
+
 | Screen | What it shows |
 |---|---|
 | Worklist | The 20 held-out patients on a shared demo clock, ranked by consensus targets and predicted risk; current glucose, trend, 60-min forecast, risks against thresholds, 24-h AGP-style range bar |
