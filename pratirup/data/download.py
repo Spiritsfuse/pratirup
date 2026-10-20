@@ -18,7 +18,9 @@ SHANGHAI_URL = "https://ndownloader.figshare.com/files/42966622"
 SHANGHAI_SHA256 = "59b5f5c4053a32bb6b7827844a0191597dc82228fe88ce332a189fdfc659c4cb"
 SHANGHAI_DIR = DATA_RAW / "shanghai"
 
-CGMACROS_BASE = "https://physionet.org/files/cgmacros/1.0.0/"
+# PhysioNet's own Open Data on AWS mirror; much faster than physionet.org for
+# the 657 MB archive. Same file, verified by the SHA-256 PhysioNet publishes.
+CGMACROS_BASE = "https://physionet-open.s3.amazonaws.com/cgmacros/1.0.0/"
 CGMACROS_DIR = DATA_RAW / "cgmacros"
 
 

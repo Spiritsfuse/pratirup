@@ -30,6 +30,7 @@ MODELS = [
     ("lgbm[cgm+events+ehr]", "LightGBM: CGM + logs + clinical record", "ablation"),
     ("lgbm[full]", "Pratirup: + personal history", "pratirup"),
     ("lgbm[full]+personal", "Pratirup + online self-correction", "pratirup"),
+    ("ensemble[lgbm+gru]", "Average of LightGBM and GRU (not deployed)", "comparison"),
 ]
 EVENT_SCORERS = [
     ("classifier", "Pratirup calibrated classifier"),
