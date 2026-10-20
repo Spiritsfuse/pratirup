@@ -9,7 +9,7 @@ Two questions, both answered on data the model never saw:
    transfers; meal grams do not (CGMacros reports nutrient carbohydrate grams,
    ShanghaiT2DM reports food weights), so they are passed as missing.
 
-2. Wearables. Inside CGMacros, do Fitbit heart rate and activity (METs) improve
+2. Wearables. Inside CGMacros, do Fitbit heart rate and activity energy improve
    60-min forecasts over CGM alone? 5-fold participant-grouped CV, same
    LightGBM settings for both arms. Exploratory: n = 45.
 
@@ -100,24 +100,28 @@ def load_cgmacros() -> tuple[dict[str, Series], dict[str, pd.DataFrame], pd.Data
 
 def _wearable_features(minute: pd.DataFrame, n_slots: int) -> pd.DataFrame:
     """Causal rolling HR / METs summaries ending at each 15-min slot."""
+    # Heart rate is present for every participant. Fitbit activity energy
+    # ("Calories (Activity)", kcal/min) is present for 44 of 45; METs are missing
+    # for 11 (they have a coarse "Intensity" level instead), so METs are not used.
     m = minute.set_index("minute")
     full = pd.RangeIndex(0, n_slots * 15)
-    hr = m["HR"].reindex(full)
-    mets = m["METs"].reindex(full) / 10.0      # stored x10
+    hr = pd.to_numeric(m["HR"], errors="coerce").reindex(full)
+    act = (pd.to_numeric(m["Calories (Activity)"], errors="coerce").reindex(full)
+           if "Calories (Activity)" in m.columns else pd.Series(np.nan, index=full))
     out = pd.DataFrame(index=full)
     out["hr_mean_15"] = hr.rolling(15, min_periods=5).mean()
     out["hr_mean_60"] = hr.rolling(60, min_periods=20).mean()
     out["hr_sd_60"] = hr.rolling(60, min_periods=20).std()
     out["hr_delta_60"] = out["hr_mean_15"] - hr.rolling(120, min_periods=40).mean()
-    out["mets_mean_15"] = mets.rolling(15, min_periods=5).mean()
-    out["mets_mean_60"] = mets.rolling(60, min_periods=20).mean()
-    out["mets_max_60"] = mets.rolling(60, min_periods=20).max()
-    out["active_min_60"] = (mets > 3).astype(float).rolling(60, min_periods=20).sum()
+    out["act_kcal_15"] = act.rolling(15, min_periods=5).sum()
+    out["act_kcal_60"] = act.rolling(60, min_periods=20).sum()
+    out["act_max_60"] = act.rolling(60, min_periods=20).max()
+    out["active_min_60"] = (act > 3).astype(float).where(act.notna()).rolling(60, min_periods=20).sum()
     return out.iloc[np.arange(n_slots) * 15].reset_index(drop=True)
 
 
-WEARABLE_FEATURES = ["hr_mean_15", "hr_mean_60", "hr_sd_60", "hr_delta_60", "mets_mean_15", "mets_mean_60",
-                     "mets_max_60", "active_min_60"]
+WEARABLE_FEATURES = ["hr_mean_15", "hr_mean_60", "hr_sd_60", "hr_delta_60", "act_kcal_15", "act_kcal_60",
+                     "act_max_60", "active_min_60"]
 
 
 def run_external() -> dict:
@@ -219,7 +223,7 @@ def run_external() -> dict:
             "Frozen ShanghaiT2DM model; no refitting on CGMacros for the transfer test.",
             "Missing inputs (medications, most labs, complications, meal grams) passed as missing.",
             "Groups by HbA1c: <5.7% healthy, 5.7-6.4% prediabetes, >=6.5% T2D.",
-            "Wearable experiment is exploratory (45 participants).",
+            "Wearable experiment is exploratory (45 participants); features use heart rate and Fitbit activity energy.",
         ],
         "transfer": transfer,
         "hyper_alerts": ev,
