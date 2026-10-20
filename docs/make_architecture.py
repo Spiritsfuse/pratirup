@@ -140,6 +140,6 @@ for i, (fill, edge, label) in enumerate([(REAL, REAL_E, "Real research data"), (
     ax.text(lx + 4.2, ly + 19.1 - i * 3.6, label, fontsize=8.2, color=INK, va="center")
 ax.text(40, 1.2, "Dashed border: offline only, not part of the running app.", fontsize=7.6, color=MUTED)
 
-fig.savefig(OUT / "architecture.pdf")
-fig.savefig(OUT / "architecture.png", dpi=150)
+fig.savefig(OUT / "architecture.pdf", bbox_inches="tight", pad_inches=0.15)
+fig.savefig(OUT / "architecture.png", dpi=150, bbox_inches="tight", pad_inches=0.15)
 print("wrote", OUT / "architecture.pdf")
