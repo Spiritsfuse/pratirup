@@ -61,24 +61,27 @@ def download_shanghai(force: bool = False) -> Path:
     return SHANGHAI_DIR
 
 
+CGMACROS_ZIP = "CGMacros_dateshifted365.zip"
+CGMACROS_SHA256 = "05c8b0e6f1a2757050aced55ce4bf6ab2ac9b30f2fd8ca193056812d9c621d4d"
+
+
 def download_cgmacros(force: bool = False) -> Path:
-    """Fetch CGMacros tabular files (no meal photos) from PhysioNet."""
-    files = ["bio.csv", "gut_health_test.csv", "LICENSE.txt", "SHA256SUMS.txt"]
-    for name in files:
-        dest = CGMACROS_DIR / name
-        if force or not dest.exists():
-            print(f"Downloading CGMacros/{name}")
-            _fetch(CGMACROS_BASE + name, dest)
-    for i in range(1, 50):
-        sid = f"CGMacros-{i:03d}"
-        dest = CGMACROS_DIR / sid / f"{sid}.csv"
-        if dest.exists() and not force:
-            continue
-        try:
-            _fetch(f"{CGMACROS_BASE}{sid}/{sid}.csv", dest)
-            print(f"Downloaded {sid}")
-        except Exception as exc:  # several IDs in 1..49 are unused upstream
-            if dest.exists():
-                dest.unlink()
-            print(f"Skipped {sid}: {exc}")
-    return CGMACROS_DIR
+    """Fetch CGMacros (657 MB, mostly meal photos) and extract only the CSV files."""
+    zip_path = CGMACROS_DIR / CGMACROS_ZIP
+    if force or not zip_path.exists():
+        print(f"Downloading {CGMACROS_BASE}{CGMACROS_ZIP} (657 MB)")
+        _fetch(CGMACROS_BASE + CGMACROS_ZIP, zip_path)
+    digest = _sha256(zip_path)
+    if digest != CGMACROS_SHA256:
+        raise RuntimeError(f"Checksum mismatch for {zip_path}: got {digest}")
+    out = CGMACROS_DIR / "csv"
+    with zipfile.ZipFile(zip_path) as z:
+        for name in z.namelist():
+            if not name.lower().endswith(".csv") or name.startswith("__MACOSX"):
+                continue
+            target = (out / name).resolve()
+            if out.resolve() not in target.parents:
+                raise RuntimeError(f"Unsafe path in archive: {name}")
+            z.extract(name, out)
+    print(f"CGMacros CSVs extracted to {out} (sha256 verified)")
+    return out
