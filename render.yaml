@@ -1,0 +1,17 @@
+# Render Blueprint: free Docker web service (512 MB RAM, sleeps after 15 min idle).
+# Deploy: Render dashboard -> New -> Blueprint -> connect this repository.
+services:
+  - type: web
+    name: pratirup
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: PRATIRUP_VAR_DIR
+        value: /tmp/pratirup
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: OMP_NUM_THREADS
+        value: "1"

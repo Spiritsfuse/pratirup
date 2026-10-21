@@ -106,12 +106,12 @@ pres.addSection({ title: "Opening" });
   const s = content("What we built and what it achieves", "Opening");
   const d60 = B.bootstrap_test["60"].lgbm_full_vs_persistence;
   const red60 = -d60.diff / T["60"].persistence.mae;
-  const hyper = B.events.test.hyper.classifier.event;
+  const AP = B.alert_policy.test;
   stat(s, 0.6, 1.5, 3.9, "−" + pct(red60), `60-min forecast error vs last value carried forward on 20 unseen patients (95% CI ${f2(d60.ci95[0])} to ${f2(d60.ci95[1])} mg/dL)`);
   stat(s, 4.7, 1.5, 3.9, pct(B.intervals.test["60"].personal.coverage), "of outcomes fell inside the 80% prediction interval (60 min): the stated uncertainty is honest");
-  stat(s, 8.8, 1.5, 3.9, pct(hyper.sensitivity_lead30), `of rises above 180 mg/dL flagged ≥ 30 min ahead, at ${f2(hyper.false_alerts_per_day)} false alerts per patient-day`);
+  stat(s, 8.8, 1.5, 3.9, pct(AP.hypo.sensitivity), `of hypoglycaemia episodes flagged in advance, with ${f1(AP.alerts_per_day)} alerts per patient-day in total (v1: ${f1(B.versions.v1.alerts_per_day)})`);
   text(s, bullets([
-    "A per-patient twin: clinical record + CGM + medication and meal logs, updated on every reading, scoring every forecast when its outcome arrives",
+    "A per-patient twin: clinical record + CGM + medication and meal logs, updated on every reading, scoring every forecast when its outcome arrives; v2 is robust to sensor noise",
     "A clinician worklist, an explainable patient view, a forecast ledger, a what-if labelled as associational, live streaming, FHIR R4 records",
     `Validated twice: held-out ShanghaiT2DM patients (scored once, locked) and an external US cohort (CGMacros): 60-min MAE ${f1(E.transfer["60"].t2d.models["lgbm[full]"].mae)} vs ${f1(E.transfer["60"].t2d.models.persistence.mae)} mg/dL in T2D`,
     "Open: code, trained models, data pipeline and the scripts that regenerate every number on these slides",
@@ -265,11 +265,11 @@ pres.addSection({ title: "Evidence" });
   const s = content("Forecast accuracy on 20 unseen patients", "Evidence");
   const H = ["30", "60", "120"];
   const series = [
-    ["Last value carried forward", "persistence"], ["Linear autoregression", "ridge_ar"], ["GRU sequence network", "gru_seq"], ["Pratirup", "lgbm[full]"],
-  ].map(([name, k]) => ({ name, labels: ["+30 min", "+60 min", "+120 min (exploratory)"], values: H.map((h) => +T[h][k].mae.toFixed(1)) }));
+    ["Last value carried forward", "persistence"], ["Chronos-Bolt (zero-shot)", "chronos"], ["Linear autoregression", "ridge_ar"], ["GRU sequence network", "gru_seq"], ["Pratirup", "lgbm[full]"],
+  ].map(([name, k]) => ({ name, labels: ["+30 min", "+60 min", "+120 min (exploratory)"], values: H.map((h) => +(k === "chronos" ? B.foundation_model.test[h].mae : T[h][k].mae).toFixed(1)) }));
   s.addChart(pres.charts.BAR, series, {
     x: 0.6, y: 1.35, w: 7.6, h: 5.4, barDir: "col", barGrouping: "clustered", barGapWidthPct: 60,
-    chartColors: [C.grey, C.greyLight, C.gold, C.petrol], showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.0",
+    chartColors: [C.grey, "D9B99B", C.greyLight, C.gold, C.petrol], showValue: true, dataLabelPosition: "outEnd", dataLabelFormatCode: "0.0",
     showLegend: true, legendPos: "b", showTitle: true, title: "Mean absolute error, mg/dL (lower is better)", titleFontSize: 13,
     titleColor: C.ink, titleFontFace: BODY, valAxisMinVal: 0, ...chartBase,
   });
@@ -280,8 +280,8 @@ pres.addSection({ title: "Evidence" });
   text(s, "Clinical safety", { x: 8.6, y: 3.55, w: 4.1, h: 0.4, fontSize: 15, bold: true, color: C.petrol });
   text(s, `Parkes type-2 error grid, zones A+B: ${f1(T["30"]["lgbm[full]"].parkes["A+B"])}% / ${f1(T["60"]["lgbm[full]"].parkes["A+B"])}% / ${f1(T["120"]["lgbm[full]"].parkes["A+B"])}% at 30 / 60 / 120 min`,
     { x: 8.6, y: 4.0, w: 4.1, h: 0.9, fontSize: 13.5 });
-  text(s, "GRU vs Pratirup", { x: 8.6, y: 5.0, w: 4.1, h: 0.4, fontSize: 15, bold: true, color: C.petrol });
-  text(s, `No measurable difference at 60 min: ${f2(b["60"].lgbm_full_vs_gru_seq.diff)} mg/dL (95% CI ${f2(b["60"].lgbm_full_vs_gru_seq.ci95[0])} to ${f2(b["60"].lgbm_full_vs_gru_seq.ci95[1])}). We serve the model we can explain.`,
+  text(s, "GRU and foundation model", { x: 8.6, y: 5.0, w: 4.1, h: 0.4, fontSize: 15, bold: true, color: C.petrol });
+  text(s, `Tuned GRU vs Pratirup at 60 min: ${f2(b["60"].lgbm_full_vs_gru_seq.diff)} mg/dL (95% CI ${f2(b["60"].lgbm_full_vs_gru_seq.ci95[0])} to ${f2(b["60"].lgbm_full_vs_gru_seq.ci95[1])}), about 1%: we serve the model we can explain. Chronos-Bolt zero-shot: ${f1(B.foundation_model.test["60"].mae)} mg/dL.`,
     { x: 8.6, y: 5.45, w: 4.1, h: 1.3, fontSize: 13.5 });
   s.addNotes("Negative differences mean Pratirup is better. The 120-minute horizon answers the brief's '2 hours in advance' example directly: it is better than the baselines, but its error is large, so we keep it exploratory.");
 }
@@ -316,24 +316,52 @@ pres.addSection({ title: "Evidence" });
   s.addNotes("Coverage is the share of real outcomes that fell inside the stated 80% interval on unseen patients. Close to 80% means the uncertainty shown on screen is honest.");
 }
 
-// ---------------------------------------------------------------- 12b. Alerts
+// ---------------------------------------------------------------- 12b. Alerts (consolidated policy)
 {
-  const s = content("Early warning: more episodes caught, earlier", "Evidence");
-  const rows = [["Event within 60 min", "Scorer", "Episodes", "Sensitivity", "≥ 30 min warning", "PPV", "False alerts / patient-day", "AUPRC (prevalence)"]];
-  [["hyper", "Rise above 180 mg/dL"], ["hyper2", "Rise above 250 mg/dL"], ["hypo", "Fall below 70 mg/dL"]].forEach(([k, label]) => {
-    [["classifier", "Pratirup"], ["trend_rule", "Rate-of-change rule"]].forEach(([sc, scl], j) => {
-      const v = B.events.test[k][sc], e = v.event;
-      rows.push([j === 0 ? label : "", scl, j === 0 ? String(e.episodes) : "", pct(e.sensitivity, 1), pct(e.sensitivity_lead30, 1), pct(e.ppv, 1),
-        f2(e.false_alerts_per_day), `${v.sample.auprc.toFixed(2)} (${v.sample.prevalence.toFixed(3)})`]);
-    });
+  const s = content("Alerts a care team can live with", "Evidence");
+  const AP = B.alert_policy;
+  const rows = [["Cohort", "Alerts / patient-day", "False / day", "PPV", "< 70 caught (≥ 30 min)", "> 250 caught (≥ 30 min)"]];
+  [["Development (CV)", AP.dev], ["Held-out test", AP.test], ["CGMacros T2D (external)", AP.external_t2d]].forEach(([n, r]) => {
+    if (!r) return;
+    rows.push([n, f2(r.alerts_per_day), f2(r.false_alerts_per_day), pct(r.ppv), `${pct(r.hypo.sensitivity)} (${pct(r.hypo.sensitivity_lead30)}) of ${r.hypo.episodes}`,
+      `${pct(r.hyper2.sensitivity)} (${pct(r.hyper2.sensitivity_lead30)}) of ${r.hyper2.episodes}`]);
   });
-  const cells = rows.map((r, i) => r.map((c) => ({ text: c, options: { bold: i === 0, fontSize: 13, fontFace: BODY,
-    color: i > 0 && i % 2 === 1 ? C.petrol : C.ink, fill: { color: i === 0 ? C.bg2 : (i % 2 === 1 ? C.white : "FAFBFC") },
-    margin: [3, 6, 3, 6], valign: "middle" } })));
-  s.addTable(cells, { x: 0.6, y: 1.45, w: 12.1, colW: [2.3, 2.0, 1.0, 1.3, 1.45, 0.9, 1.55, 1.6], border: { type: "solid", pt: 0.75, color: C.line }, rowH: 0.45 });
-  text(s, `Thresholds were set on development patients for ≤ 2 false alerts per patient-day, with a 60-min cooldown. On test patients the low-glucose alert overshot (${f2(B.events.test.hypo.classifier.event.false_alerts_per_day)} per day), and the three alert types together produce ${f1(B.alert_burden_test.total_alerts_per_day)} alerts per patient-day: too many for routine use. Next step: one merged alert stream with a shared cooldown, and budgets set with clinicians.`,
-    { x: 0.6, y: 5.0, w: 12.1, h: 1.4, fontSize: 15, color: C.ink });
-  s.addNotes("Sensitivity is per episode. The ≥ 30 min column is the clinically useful one: many detections otherwise come only 15 minutes ahead. AUPRC should be compared with prevalence, which is the score of a random ranking.");
+  const cells = rows.map((r, i) => r.map((c) => ({ text: c, options: { bold: i === 0 || i === 2, fontSize: 14, fontFace: BODY,
+    color: i === 2 ? C.petrol : C.ink, fill: { color: i === 0 ? C.bg2 : (i === 2 ? C.soft : C.white) }, margin: [4, 8, 4, 8], valign: "middle" } })));
+  s.addTable(cells, { x: 0.6, y: 1.45, w: 12.1, colW: [2.9, 1.9, 1.4, 1.1, 2.4, 2.4], border: { type: "solid", pt: 0.75, color: C.line }, rowH: 0.5 });
+  card(s, 0.6, 3.85, 5.9, 2.85, "The policy",
+    "One stream per patient, only for predicted < 70 or > 250 mg/dL within 60 min. At most one alert per hour; a predicted low may override. Rising above 180 is expected in T2D (target is < 25% of the time, not zero), so it ranks the worklist instead of interrupting.", C.soft);
+  card(s, 6.8, 3.85, 5.9, 2.85, "The honest trade-off",
+    `v1 tuned each event alone: ${f1(B.versions.v1.alerts_per_day)} alerts per patient-day. v2: ${f2(AP.test.alerts_per_day)}. The price is sensitivity (each classifier alone catches more). Thresholds were set on development data for ≤ 1 false alert per day; test overshot to ${f2(AP.test.false_alerts_per_day)}. The budget is a dial clinicians should set.`);
+  s.addNotes("Alarm fatigue is a documented safety problem in monitoring. A care team that ignores alerts gets nothing from even a perfect model, so we optimised for a usable alert load, not maximum sensitivity.");
+}
+
+// ---------------------------------------------------------------- 12c. v2
+{
+  const s = content("v2: what we fixed after the first test", "Evidence");
+  const NE = B.noise_experiment_dev.results["30"];
+  const sds = [0, 5, 10, 20];
+  s.addChart(pres.charts.LINE, [
+    { name: "v1 (clean training)", labels: sds.map((x) => `SD ${x}`), values: sds.map((x) => +NE[`v1_clean_training|sd=${x}`].mae.toFixed(1)) },
+    { name: "v2 (noise-augmented)", labels: sds.map((x) => `SD ${x}`), values: sds.map((x) => +NE[`v2_noise_augmented|sd=${x}`].mae.toFixed(1)) },
+    { name: "Last value carried forward", labels: sds.map((x) => `SD ${x}`), values: sds.map((x) => +NE[`v1_clean_training|sd=${x}`].mae_persistence.toFixed(1)) },
+  ], {
+    x: 0.6, y: 1.35, w: 6.6, h: 5.3, chartColors: [C.grey, C.petrol, C.greyLight], lineSize: 2, lineDataSymbolSize: 7, showValue: true,
+    dataLabelPosition: "t", dataLabelFormatCode: "0.0", showLegend: true, legendPos: "b", showTitle: true,
+    title: "30-min MAE vs added sensor noise (development patients)", titleFontSize: 13, titleColor: C.ink, titleFontFace: BODY, ...chartBase,
+  });
+  const V = B.versions;
+  const rows = [["", "v1", "v2"],
+    ["MAE 60 min (clean)", f2(V.v1.mae["60"]), f2(V.latest.mae["60"])],
+    ["MAE 30 min, SD-10 noise", f1(V.v1.noise10_mae_30), f1(V.latest.noise10_mae_30)],
+    ["Last value, SD-10 noise", f1(V.latest.noise10_mae_30_persistence), f1(V.latest.noise10_mae_30_persistence)],
+    ["Alerts per patient-day", f1(V.v1.alerts_per_day), f2(V.latest.alerts_per_day)]];
+  s.addTable(rows.map((r, i) => r.map((c, j) => ({ text: c, options: { bold: i === 0 || j === 2, fontSize: 14, fontFace: BODY,
+    color: j === 2 && i > 0 ? C.petrol : C.ink, fill: { color: i === 0 ? C.bg2 : C.white }, margin: [4, 8, 4, 8] } }))),
+    { x: 7.5, y: 1.45, w: 5.2, colW: [2.8, 1.2, 1.2], border: { type: "solid", pt: 0.75, color: C.line }, rowH: 0.48 });
+  text(s, "How we did it without cheating: both changes were chosen on development patients with a rule written before the experiment. The test set was re-scored once, the reason is logged, and v1 results are kept unchanged.",
+    { x: 7.5, y: 4.3, w: 5.2, h: 2.2, fontSize: 14 });
+  s.addNotes("The v1 test exposed two weaknesses: sensitivity to sensor noise and an unusable alert load. We fixed both using development data only, then re-scored the test set once and logged why. Clean accuracy dropped about 1 percent; noisy accuracy improved about 30 percent.");
 }
 
 // ---------------------------------------------------------------- 13. External
@@ -387,8 +415,8 @@ pres.addSection({ title: "Product" });
   const items = [
     ["Population", "Chinese hospital cohort, 2019–2021, partly in-hospital with regular meal times. Not Indian. External check covers the US, not India."],
     ["Size", "100 patients, 3–14 days each; 20 test patients. Hence bootstrap CIs on every claim."],
-    ["Alert load", `${f1(B.alert_burden_test.total_alerts_per_day)} alerts per patient-day across three types; low-glucose alert above its false-alert budget.`],
-    ["Sensor noise", `With ±10 mg/dL random noise added, the 30-min forecast is worse than last value (${f1(B.robustness_test.noise10.mae_30_lgbm)} vs ${f1(B.robustness_test.noise10.mae_30_persistence)}). Libre output is pre-smoothed; noisier devices need noise-augmented training.`],
+    ["Alert budget", `${f2(B.alert_policy.test.false_alerts_per_day)} false alerts per patient-day on test vs a development budget of 1.0; fewer alerts means some episodes are missed.`],
+    ["Test reuse", "The test set was scored twice (v1, v2). v2 choices used development data only, but were motivated by what the v1 test revealed; both results are reported."],
     ["Causality", "The what-if shows model sensitivity, not the effect of eating or dosing."],
     ["Evidence level", "Retrospective only. No prospective, real-time or outcome study."],
   ];
@@ -410,8 +438,8 @@ pres.addSection({ title: "Product" });
     "Likely software as a medical device under India's Medical Devices Rules 2017 (CDSCO draft guidance, Oct 2025). Real data falls under the DPDP Act 2023 and Rules 2025.");
   text(s, "Next steps", { x: 0.6, y: 4.35, w: 6, h: 0.4, fontSize: 17, bold: true, color: C.petrol });
   text(s, bullets([
-    "Merge the three alert types into one stream with a shared cooldown; set budgets with clinicians",
-    "Noise-augmented training and a noise detector that widens intervals or abstains",
+    "Let clinicians set the alert budget per programme; add escalation for unacknowledged alerts",
+    "Device-specific noise models (autocorrelated error) and validation on noisier sensors",
     "A prospective, observation-only pilot with an Indian diabetes clinic (forecasts hidden from care until validated)",
     "Interoperability: CGM vendor APIs and ABDM-compliant FHIR exchange",
   ], 14), { x: 0.6, y: 4.8, w: 12.1, h: 2.0 });
