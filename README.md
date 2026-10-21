@@ -175,6 +175,7 @@ No external API, no LLM, no GPU and no secret is used anywhere.
   - adopting noise augmentation, under a rule written before the experiment.
 - **Early stopping** used held-out development patients only.
 - **Test scoring.** The test set is scored behind a lock file. v1 was scored once. v2 was scored once more, with the reason logged in [`results/runs.jsonl`](results/runs.jsonl). v1 results are kept unchanged in [`results/v1/`](results/v1/).
+- **Commit IDs.** The history was rewritten once to standardise co-authors. [`results/COMMIT_ID_MAP.md`](results/COMMIT_ID_MAP.md) maps the commit IDs cited in the locked results to the current ones.
 - **Leakage test.** [`tests/test_leakage.py`](tests/test_leakage.py) proves that no feature sees the future.
 
 **Metrics**
