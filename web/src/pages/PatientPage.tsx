@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import { RegimenChips } from '../components/clinical'
@@ -6,12 +7,24 @@ import { ErrorState, LiveBadge, ProvChip, Skeleton, Tabs, type TabDef } from '..
 import { useApi } from '../hooks/useApi'
 import { clockLabel, round, sexLabel } from '../lib/format'
 import { useApp } from '../state/app'
-import { LedgerTab } from './patient/LedgerTab'
-import { RecordTab } from './patient/RecordTab'
-import { WhatIfTab } from './patient/WhatIfTab'
 
-type TabKey = 'twin' | 'ledger' | 'whatif' | 'record'
-const TAB_KEYS: TabKey[] = ['twin', 'ledger', 'whatif', 'record']
+// The Twin tab is the landing view and ships with this page; the others load on demand.
+const LedgerTab = lazy(() => import('./patient/LedgerTab').then((m) => ({ default: m.LedgerTab })))
+const AgpTab = lazy(() => import('./patient/AgpTab').then((m) => ({ default: m.AgpTab })))
+const WhatIfTab = lazy(() => import('./patient/WhatIfTab').then((m) => ({ default: m.WhatIfTab })))
+const RecordTab = lazy(() => import('./patient/RecordTab').then((m) => ({ default: m.RecordTab })))
+
+type TabKey = 'twin' | 'ledger' | 'agp' | 'whatif' | 'record'
+const TAB_KEYS: TabKey[] = ['twin', 'ledger', 'agp', 'whatif', 'record']
+
+function TabFallback() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading">
+      <Skeleton className="h-10 w-2/3" />
+      <Skeleton className="h-72 w-full" />
+    </div>
+  )
+}
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -36,6 +49,7 @@ export default function PatientPage() {
   const tabs: TabDef<TabKey>[] = [
     { key: 'twin', label: 'Twin' },
     { key: 'ledger', label: 'Ledger' },
+    { key: 'agp', label: 'AGP', hint: 'Ambulatory glucose profile' },
     { key: 'whatif', label: 'What-if', disabled: live, hint: live ? 'Available for replayed patients' : undefined },
     { key: 'record', label: 'Record' },
   ]
@@ -134,9 +148,12 @@ export default function PatientPage() {
 
       <div className="pt-4" role="tabpanel" aria-label={tabs.find((x) => x.key === tab)?.label}>
         {tab === 'twin' && <TwinView key={rid} rid={rid} t={t} live={live} pollMs={live ? 1500 : undefined} />}
-        {tab === 'ledger' && <LedgerTab key={rid} rid={rid} t={t} live={live} />}
-        {tab === 'whatif' && <WhatIfTab key={rid} rid={rid} t={t} live={!!live} />}
-        {tab === 'record' && <RecordTab record={p} />}
+        <Suspense fallback={<TabFallback />}>
+          {tab === 'ledger' && <LedgerTab key={rid} rid={rid} t={t} live={live} />}
+          {tab === 'agp' && <AgpTab key={rid} rid={rid} t={t} live={live} />}
+          {tab === 'whatif' && <WhatIfTab key={rid} rid={rid} t={t} live={!!live} />}
+          {tab === 'record' && <RecordTab record={p} />}
+        </Suspense>
       </div>
     </div>
   )

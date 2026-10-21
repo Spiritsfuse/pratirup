@@ -23,7 +23,7 @@ const LOOP = [
   {
     n: '3',
     title: 'Forecast',
-    text: 'From the state the twin forecasts glucose 30, 60 and 120 minutes ahead, each with an 80% interval, plus the probability of going below 70 or above 180 and 250 mg/dL within the hour. If it has too little recent data it abstains instead of guessing.',
+    text: 'From the state the twin forecasts glucose 30, 60 and 120 minutes ahead, each with an 80% interval, plus the probability of going below 70 or above 180 and 250 mg/dL within the hour. It raises an alert only for a predicted low (below 70) or a predicted very high (above 250), at most once an hour per patient; a predicted rise above 180 just ranks the patient higher on the worklist. If it has too little recent data it abstains instead of guessing.',
   },
   {
     n: '4',

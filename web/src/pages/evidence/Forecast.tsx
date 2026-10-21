@@ -6,11 +6,15 @@ import { Segmented, Stat, cx } from '../../components/ui'
 import {
   type Basis,
   BasisChip,
+  FOUNDATION_KEY,
+  FOUNDATION_LABEL,
   HORIZON_NOTE,
   Pending,
   Section,
   Sub,
   f1,
+  foundationAt,
+  foundationBlock,
   modelLabel,
   pc,
   pk,
@@ -23,14 +27,14 @@ const NOMINAL = 0.8 // the intervals are built to be 80% intervals
 
 // ---------------------------------------------------------------- protocol
 
-export function Protocol({ ev }: { ev: Evaluation }) {
+export function Protocol({ ev, letter }: { ev: Evaluation; letter: string }) {
   const m = ev.meta
   const ts = m.test_stage
   const dev = m.dev_stage
   return (
     <Section
       id="protocol"
-      letter="a"
+      letter={letter}
       title="Protocol"
       lead="How the numbers on this page were produced. The split is by patient, never by time window, so no patient contributes to both training and scoring."
     >
@@ -114,16 +118,43 @@ function WrapTick(props: { x?: number; y?: number; payload?: { value: string }; 
   )
 }
 
-function MaeChart({ ev, block }: { ev: Evaluation; block: Record<string, Record<string, PointMetrics>> }) {
-  const c = useChartColors()
+interface CompareEntry {
+  key: string
+  label: string
+  kind: string
+  /** metrics by horizon; the foundation model only has MAE and RMSE */
+  at: (h: string) => { mae: number; rmse: number; bias?: number; parkes?: Record<string, number> } | undefined
+}
+
+/** App models plus, when the results file has it, the zero-shot foundation model (slotted after the GRU). */
+function compareEntries(ev: Evaluation, block: Record<string, Record<string, PointMetrics>>, basis: Basis): CompareEntry[] {
   const hs = sortedHorizons(block)
-  const data = ev.models
+  const out: CompareEntry[] = ev.models
     .filter((m) => hs.some((h) => block[h]?.[m.key]))
-    .map((m) => {
-      const row: Record<string, string | number | undefined> = { label: m.label, kind: m.kind }
-      for (const h of hs) row[`h${h}`] = block[h]?.[m.key]?.mae
-      return row
-    })
+    .map((m) => ({ key: m.key, label: m.label, kind: m.kind, at: (h: string) => block[h]?.[m.key] }))
+  if (hs.some((h) => foundationAt(ev, basis, h))) {
+    const entry: CompareEntry = {
+      key: FOUNDATION_KEY,
+      label: FOUNDATION_LABEL,
+      kind: 'foundation',
+      at: (h) => {
+        const f = foundationAt(ev, basis, h)
+        return f ? { mae: f.mae, rmse: f.rmse } : undefined
+      },
+    }
+    const i = out.findIndex((e) => e.key === 'gru_seq')
+    out.splice(i >= 0 ? i + 1 : out.length, 0, entry)
+  }
+  return out
+}
+
+function MaeChart({ ev, entries, hs }: { ev: Evaluation; entries: CompareEntry[]; hs: string[] }) {
+  const c = useChartColors()
+  const data = entries.map((m) => {
+    const row: Record<string, string | number | undefined> = { label: m.label, kind: m.kind }
+    for (const h of hs) row[`h${h}`] = m.at(h)?.mae
+    return row
+  })
   const colorFor = (h: string) => (Number(h) === 30 ? c.pastfc : Number(h) === 60 ? c.accent : alpha(c.muted, 0.45))
   const bold = new Set(ev.models.filter((m) => m.kind === 'pratirup').map((m) => m.label))
   const rowH = 20 * hs.length + 18
@@ -258,7 +289,89 @@ function Contrasts({ ev, h }: { ev: Evaluation; h: string }) {
   )
 }
 
-export function Accuracy({ ev, basis }: { ev: Evaluation; basis: Basis }) {
+const PER_PATIENT_MODELS = ['persistence', 'lgbm[full]', 'lgbm[full]+personal']
+
+function PerPatient({ ev }: { ev: Evaluation }) {
+  const pp = ev.per_patient_test
+  if (!pp) return null
+  const hs = sortedHorizons(pp)
+  const keys = PER_PATIENT_MODELS.filter((k) => hs.some((h) => pp[h]?.[k]))
+  if (!keys.length) return null
+  const n = ev.meta.split.test_patients
+  const main = primaryModel(ev)
+  return (
+    <div>
+      <Sub right={<BasisChip basis="test" />}>Per-patient error: how much does accuracy vary between people?</Sub>
+      <div className="card">
+        <div className="scroll-x px-1 pb-1">
+          <table className="tbl">
+            <caption className="sr-only">
+              Mean and standard deviation, across test patients, of each patient&apos;s MAE and RMSE
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col" rowSpan={2}>
+                  Model
+                </th>
+                {hs.map((h) => (
+                  <th key={h} scope="colgroup" colSpan={2} className="r">
+                    +{h} min{HORIZON_NOTE(h)}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                {hs.flatMap((h) => [
+                  <th key={`${h}m`} scope="col" className="r !pt-0 text-[11px] font-medium">
+                    MAE
+                  </th>,
+                  <th key={`${h}r`} scope="col" className="r !pt-0 text-[11px] font-medium">
+                    RMSE
+                  </th>,
+                ])}
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map((k) => (
+                <tr key={k} className={cx(k === main && 'bg-accent-soft/50')}>
+                  <td className={cx(k.startsWith('lgbm') && 'font-semibold')}>{modelLabel(ev, k)}</td>
+                  {hs.flatMap((h) => {
+                    const v = pp[h]?.[k]
+                    return [
+                      <td key={`${h}m`} className="num r whitespace-nowrap">
+                        {v ? (
+                          <>
+                            <span className="font-semibold">{f1(v.mae_mean, 2)}</span> <span className="text-muted">± {f1(v.mae_sd, 2)}</span>
+                          </>
+                        ) : (
+                          '–'
+                        )}
+                      </td>,
+                      <td key={`${h}r`} className="num r whitespace-nowrap">
+                        {v ? (
+                          <>
+                            {f1(v.rmse_mean, 2)} <span className="text-muted">± {f1(v.rmse_sd, 2)}</span>
+                          </>
+                        ) : (
+                          '–'
+                        )}
+                      </td>,
+                    ]
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="border-t border-line px-4 py-2.5 text-xs text-muted">
+          Mean ± SD across the <span className="num">{n}</span> test patients, in mg/dL. A larger SD means accuracy differs more from
+          one person to the next; the headline figures above pool every forecast instead.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export function Accuracy({ ev, basis, letter }: { ev: Evaluation; basis: Basis; letter: string }) {
   const block = basis === 'test' && ev.forecast.test ? ev.forecast.test : ev.forecast.dev_cv
   const hs = sortedHorizons(block)
   const [h, setH] = useState<string>(hs.includes('60') ? '60' : hs[0])
@@ -288,13 +401,16 @@ export function Accuracy({ ev, basis }: { ev: Evaluation; basis: Basis }) {
     }
     return null
   }
-  const rows = ev.models.filter((m) => block[h]?.[m.key])
-  const best = Math.min(...rows.map((m) => block[h][m.key].mae))
+  const entries = compareEntries(ev, block, basis)
+  const rows = entries.filter((m) => m.at(h))
+  const best = Math.min(...rows.map((m) => m.at(h)!.mae))
+  const hasFoundation = entries.some((m) => m.key === FOUNDATION_KEY)
+  const fProtocol = ev.foundation_model?.protocol
   const mainM = (hz: string) => block[hz]?.[main]
   return (
     <Section
       id="accuracy"
-      letter="b"
+      letter={letter}
       title="Forecast accuracy"
       lead="Mean absolute error (MAE) is the average gap, in mg/dL, between what the twin forecast and what the sensor then read. Last-value-carried-forward is the bar any forecast has to clear."
       basis={basis}
@@ -332,10 +448,11 @@ export function Accuracy({ ev, basis }: { ev: Evaluation; basis: Basis }) {
 
       <div className="card p-4">
         <Sub>MAE by model and horizon</Sub>
-        <MaeChart ev={ev} block={block} />
+        <MaeChart ev={ev} entries={entries} hs={hs} />
         <p className="mt-2 text-xs text-muted">
           Bold rows are Pratirup. Grey bars are +120 min, which is exploratory: the further ahead, the less any model can
           know.
+          {hasFoundation && ' The foundation model is a pretrained reference, not part of Pratirup.'}
         </p>
       </div>
 
@@ -374,16 +491,17 @@ export function Accuracy({ ev, basis }: { ev: Evaluation; basis: Basis }) {
             </thead>
             <tbody>
               {rows.map((m) => {
-                const r = block[h][m.key]
+                const r = m.at(h)!
                 const isMain = m.kind === 'pratirup'
+                const partial = m.kind === 'foundation'
                 return (
                   <tr key={m.key} className={cx(isMain && 'bg-accent-soft/50')}>
                     <td className={cx(isMain && 'font-semibold')}>{m.label}</td>
                     <td className={cx('num r', r.mae === best && 'font-bold text-accent')}>{f1(r.mae, 2)}</td>
                     <td className="num r">{f1(r.rmse, 2)}</td>
-                    <td className="num r text-muted">{f1(r.bias, 2)}</td>
-                    <td className="num r">{pk(r.parkes?.A)}</td>
-                    <td className="num r">{pk(r.parkes?.['A+B'], 2)}</td>
+                    <td className="num r text-muted">{partial ? '—' : f1(r.bias, 2)}</td>
+                    <td className="num r">{partial ? '—' : pk(r.parkes?.A)}</td>
+                    <td className="num r">{partial ? '—' : pk(r.parkes?.['A+B'], 2)}</td>
                   </tr>
                 )
               })}
@@ -394,7 +512,17 @@ export function Accuracy({ ev, basis }: { ev: Evaluation; basis: Basis }) {
           MAE, RMSE and bias are in mg/dL; bias is forecast minus actual. Best MAE is in bold colour.
           {Number(h) > 60 ? ' *+120 min is exploratory.' : ''} Parkes zones are percentages of forecasts.
         </p>
+        {hasFoundation && (
+          <p className="border-t border-line px-4 py-2.5 text-xs text-muted">
+            <strong className="font-semibold text-ink">Chronos-Bolt small</strong> is Amazon&apos;s pretrained time-series model,
+            used zero-shot (no training on our data).{fProtocol ? ` Protocol: ${fProtocol}.` : ''} Only MAE and RMSE were scored for
+            it, over <span className="num">{foundationBlock(ev, basis)?.n_forecasts?.toLocaleString() ?? '–'}</span> forecasts, so
+            its other cells are —.
+          </p>
+        )}
       </div>
+
+      <PerPatient ev={ev} />
 
       {ev.bootstrap_test ? (
         <div>
@@ -421,7 +549,7 @@ const SHORT: Record<string, string> = {
   'lgbm[full]+personal': '+ self-correction',
 }
 
-export function Ablation({ ev, basis }: { ev: Evaluation; basis: Basis }) {
+export function Ablation({ ev, basis, letter }: { ev: Evaluation; basis: Basis; letter: string }) {
   const c = useChartColors()
   const block = basis === 'test' && ev.forecast.test ? ev.forecast.test : ev.forecast.dev_cv
   const hs = sortedHorizons(block)
@@ -457,7 +585,7 @@ export function Ablation({ ev, basis }: { ev: Evaluation; basis: Basis }) {
   return (
     <Section
       id="ablation"
-      letter="c"
+      letter={letter}
       title="What each data stream adds"
       lead="The same model family, retrained with one more data stream at a time. If a stream does not lower the error, it does not earn its place."
       basis={basis}
@@ -530,14 +658,14 @@ export function Ablation({ ev, basis }: { ev: Evaluation; basis: Basis }) {
 
 // ---------------------------------------------------------------- uncertainty
 
-export function Uncertainty({ ev, basis }: { ev: Evaluation; basis: Basis }) {
+export function Uncertainty({ ev, basis, letter }: { ev: Evaluation; basis: Basis; letter: string }) {
   const useTest = basis === 'test' && ev.intervals.test
   const hs = sortedHorizons(useTest ? ev.intervals.test! : ev.intervals.dev_cv)
   const c = useChartColors()
   return (
     <Section
       id="uncertainty"
-      letter="d"
+      letter={letter}
       title="Uncertainty: are the 80% intervals honest?"
       lead="Every forecast comes with a range that should contain the outcome about 80% of the time. If coverage is far below 80%, the twin is overconfident; far above, the range is too wide to be useful."
       basis={basis}

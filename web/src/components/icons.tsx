@@ -92,6 +92,12 @@ export const InfoIcon = (p: P) => (
     <path d="M12 11v5M12 7.6v.1" />
   </Svg>
 )
+export const BellIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.6 2H4.4z" />
+    <path d="M10 21a2.2 2.2 0 0 0 4 0" />
+  </Svg>
+)
 export const RefreshIcon = (p: P) => (
   <Svg {...p}>
     <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />

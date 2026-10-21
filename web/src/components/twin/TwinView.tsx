@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react'
 import { api } from '../../api/client'
 import type { Twin } from '../../api/types'
 import { useApi } from '../../hooks/useApi'
-import { clockLabel, minutesAgo, pct, round, TREND_TEXT } from '../../lib/format'
+import { ALERT_TEXT, clockLabel, minutesAgo, pct, round, TREND_TEXT } from '../../lib/format'
 import { glucoseTone } from '../clinical'
-import { TrendIcon } from '../icons'
+import { BellIcon, TrendIcon } from '../icons'
 import { ErrorState, LiveBadge, ProvChip, Segmented, Skeleton, cx } from '../ui'
 import { DriversCard, RiskCard, StateCard } from './Rails'
 import { ChartLegend, EventKey, TwinChart } from './TwinChart'
@@ -36,6 +36,47 @@ function windowStats(twin: Twin) {
   }
   if (!n) return null
   return { n, twinMae: twinAbs / n, baseMae: baseAbs / n, coverage: nAll ? inside / nAll : 0 }
+}
+
+/** Compact banner for the latest interruptive alert in the chart window (time + what was predicted). */
+function AlertBanner({ twin, windowH }: { twin: Twin; windowH: number }) {
+  const nowT = twin.clock.t
+  const list = twin.recent_alerts
+  const latest = list.length ? list.reduce((a, b) => (b.t >= a.t ? b : a)) : null
+  const firedNow = twin.forecast?.alert ?? null
+  if (!latest && !firedNow) return null
+  const t = latest?.t ?? twin.state?.t ?? nowT
+  const kind = latest?.kinds[latest.kinds.length - 1] ?? firedNow!.kind
+  const label = ALERT_TEXT[kind] ?? firedNow?.label ?? 'Alert'
+  const age = Math.max(0, nowT - t)
+  const active = age <= 60 || !!firedNow
+  const more = list.length - 1
+  const tone = kind === 'hypo' ? 'border-low' : 'border-vhigh'
+  const icon = kind === 'hypo' ? 'text-low' : 'text-vhigh'
+  return (
+    <div
+      role="status"
+      className={cx(
+        'flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-surface px-3.5 py-2 text-sm',
+        tone,
+        active ? 'border-2 font-medium' : 'border-l-4',
+      )}
+    >
+      <span className="flex items-center gap-1.5 font-semibold">
+        <BellIcon width={16} height={16} className={icon} />
+        {active ? 'Alert' : 'Earlier alert'}
+      </span>
+      <span className="num text-ink">
+        {clockLabel(t)} <span className="font-sans text-muted">({minutesAgo(age)})</span>
+      </span>
+      <span className="min-w-0 text-ink">{label}</span>
+      {more > 0 && (
+        <span className="text-xs text-muted">
+          +{more} earlier in the last {windowH} h
+        </span>
+      )}
+    </div>
+  )
 }
 
 function AbstainCard({ twin }: { twin: Twin }) {
@@ -92,6 +133,8 @@ export function TwinView({ rid, t, live = false, pollMs }: TwinViewProps) {
   return (
     <div className="space-y-4">
       {res.error && <ErrorState error={res.error} onRetry={res.reload} compact title="Showing the last loaded data" />}
+
+      <AlertBanner twin={twin} windowH={windowH} />
 
       {!fc && <AbstainCard twin={twin} />}
 

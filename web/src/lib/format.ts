@@ -1,4 +1,4 @@
-import type { DriverSource, EventKind, RiskKind, Trend } from '../api/types'
+import type { AlertKind, DriverSource, EventKind, RiskKind, Trend } from '../api/types'
 
 /** Demo clock helpers. t = wear-day index * 1440 + minute of day. */
 export function dayIndex(t: number): number {
@@ -59,6 +59,13 @@ export const RISK_LABEL: Record<RiskKind, string> = {
   hyper2: 'Above 250',
 }
 export const RISK_ORDER: RiskKind[] = ['hypo', 'hyper', 'hyper2']
+
+/** Interruptive alerts (model v2): only a predicted low or a predicted very high. */
+export const ALERT_SHORT: Record<AlertKind, string> = { hypo: 'predicted < 70', hyper2: 'predicted > 250' }
+export const ALERT_TEXT: Record<AlertKind, string> = {
+  hypo: 'Glucose predicted to fall below 70 mg/dL within 60 min',
+  hyper2: 'Glucose predicted to exceed 250 mg/dL within 60 min',
+}
 
 export const SOURCE_LABEL: Record<string, string> = {
   cgm: 'CGM',

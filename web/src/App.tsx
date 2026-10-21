@@ -1,13 +1,15 @@
+import { lazy } from 'react'
 import { Link, Route, Routes } from 'react-router-dom'
 import { Shell } from './components/Shell'
-import { EmptyState, PageTitle } from './components/ui'
-import AboutPage from './pages/AboutPage'
-import EvidencePage from './pages/EvidencePage'
-import LivePage from './pages/LivePage'
-import PatientPage from './pages/PatientPage'
+import { EmptyState, ErrorState, PageTitle } from './components/ui'
 import WorklistPage from './pages/WorklistPage'
-import { ErrorState } from './components/ui'
 import { useApp } from './state/app'
+
+// The worklist is the landing page and stays in the entry chunk; every other route loads on demand.
+const PatientPage = lazy(() => import('./pages/PatientPage'))
+const LivePage = lazy(() => import('./pages/LivePage'))
+const EvidencePage = lazy(() => import('./pages/EvidencePage'))
+const AboutPage = lazy(() => import('./pages/AboutPage'))
 
 function NotFound() {
   return (

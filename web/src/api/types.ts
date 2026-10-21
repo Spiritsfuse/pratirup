@@ -12,6 +12,8 @@ export type Trend =
   | 'falling'
   | 'falling_fast'
 export type RiskKind = 'hypo' | 'hyper' | 'hyper2'
+/** Kinds that raise an interruptive alert (model v2). `hyper` (>180) is a ranking signal only. */
+export type AlertKind = 'hypo' | 'hyper2'
 export type TierName = 'urgent' | 'act' | 'watch' | 'data' | 'review' | 'stable' | 'waiting' | 'ended'
 export type DriverSource = 'cgm' | 'logs' | 'clinical record' | 'personal history' | 'time'
 
@@ -22,7 +24,16 @@ export interface Meta {
   clock: { min: number; max: number; step_min: number; default: number }
   thresholds_mgdl: { hypo_l2: number; hypo: number; hyper: number; hyper_l2: number }
   horizons_min: number[]
+  /** Legacy per-kind classifier thresholds (v1 design). The alert policy below is what fires alerts. */
   alert_thresholds: Record<RiskKind, number>
+  alert_policy?: {
+    kinds: AlertKind[]
+    /** probability thresholds on the classifier output, per alerting kind */
+    thresholds: Record<AlertKind, number>
+    cooldown_min: number
+    false_alert_budget_per_day: number
+  }
+  model_version?: string
   model: { trained_at?: string; git_commit?: string; train_patients?: number; seed?: number }
   personalisation: Record<string, { lambda: number; halflife: number }>
   provenance: {
@@ -78,6 +89,13 @@ export interface Stats24h {
   gmi_pct?: number
 }
 
+export interface AlertInfo {
+  kind: AlertKind
+  /** demo minute the alert fired (worklist only) */
+  t: number
+  label: string
+}
+
 export interface WorklistPatient {
   recording_id: string
   mode: Mode
@@ -90,6 +108,8 @@ export interface WorklistPatient {
   forecast_60: { horizon: number; yhat: number; lo: number; hi: number } | null
   risk: Risk
   stats_24h: Stats24h
+  /** alert fired in the last 60 min, if any */
+  alert: AlertInfo | null
   priority: { tier: number; name: TierName; reason: string }
 }
 
@@ -162,7 +182,13 @@ export interface TwinState {
   kalman: { level: number | null; rate_mgdl_per_min: number | null; level_sd: number | null }
   trend: Trend
   profile: { mean: number | null; sd: number | null; tar: number | null; tbr: number | null }
-  data_quality: { readings_last_3h: number; expected_last_3h: number; issuable: boolean }
+  data_quality: {
+    readings_last_3h: number
+    expected_last_3h: number
+    issuable: boolean
+    /** sensor-noise proxy over the last 3 h, mg/dL */
+    signal_roughness_mgdl?: number | null
+  }
   personal_correction: Record<string, number | null>
 }
 
@@ -170,7 +196,9 @@ export interface TwinForecast {
   issued_t: number
   horizons: HorizonForecast[]
   risk: Risk
-  active_alerts: RiskKind[]
+  /** alert that fired at this reading, if any */
+  alert?: { kind: AlertKind; label: string } | null
+  active_alerts: AlertKind[]
   drivers: {
     forecast_60?: Driver[]
     event?: { kind: RiskKind; items: Driver[]; units: string }
@@ -191,7 +219,7 @@ export interface Twin {
   observations: { t: number; glucose: number }[]
   fingersticks: { t: number; glucose: number }[]
   events: TwinEvent[]
-  recent_alerts: { t: number; kinds: RiskKind[] }[]
+  recent_alerts: { t: number; kinds: AlertKind[] }[]
   past_forecasts: PastForecast[]
   stats_24h: Stats24h
   state: TwinState | null
@@ -252,6 +280,39 @@ export interface Sensitivity {
   disclaimer: string
 }
 
+export interface AgpBin {
+  /** minute of day at the centre of the bin */
+  tod: number
+  n: number
+  p5: number | null
+  p25: number | null
+  p50: number | null
+  p75: number | null
+  p95: number | null
+}
+
+export interface Agp {
+  recording_id: string
+  t: number
+  available: boolean
+  reason?: string
+  n_readings: number
+  days?: number
+  coverage?: number
+  sufficient?: boolean
+  sufficiency_note?: string
+  mean?: number
+  gmi_pct?: number
+  cv_pct?: number | null
+  gri?: number
+  /** fractions of time (0-1) */
+  ranges?: { very_low: number; low: number; in_range: number; high: number; very_high: number }
+  /** consensus targets as display strings, e.g. ">70%" */
+  targets?: Record<string, string>
+  profile?: AgpBin[]
+  note?: string
+}
+
 export interface LiveSession {
   recording_id: string
   source: string
@@ -273,7 +334,7 @@ export interface PointMetrics {
   n: number
   mae: number
   rmse: number
-  bias: number
+  bias?: number
   mard_pct?: number
   bands?: Record<string, { n: number; mae: number }>
   parkes?: Record<string, number>
@@ -355,6 +416,56 @@ export interface ImportanceEntry {
   shap_by_group_mgdl: Record<string, number>
 }
 
+export interface VersionSummary {
+  model_version: number | string
+  evaluated_at?: string
+  mae: Record<string, number>
+  mae_persistence: Record<string, number>
+  coverage_60: number
+  noise10_mae_30: number
+  noise10_mae_30_persistence: number
+  alerts_per_day: number
+  false_alerts_per_day: number | null
+  alert_design: string
+}
+
+export interface AlertPolicyKind {
+  episodes: number
+  sensitivity: number
+  sensitivity_lead30: number | null
+  lead_time_median_min: number | null
+}
+
+export interface AlertPolicyResult {
+  thresholds: Record<AlertKind, number>
+  patient_days: number
+  alerts_per_day: number
+  false_alerts_per_day: number
+  ppv: number | null
+  hypo: AlertPolicyKind
+  hyper2: AlertPolicyKind
+}
+
+export interface FoundationHorizon {
+  mae: number
+  rmse: number
+  mae_persistence: number
+  coverage_80: number
+  mean_width_80: number
+}
+export interface FoundationBlock {
+  n_forecasts: number
+  seconds: number
+  [horizon: string]: FoundationHorizon | number
+}
+
+export interface PerPatientMetric {
+  mae_mean: number
+  mae_sd: number
+  rmse_mean: number
+  rmse_sd: number
+}
+
 export interface Evaluation {
   meta: {
     generated_at: string
@@ -408,6 +519,29 @@ export interface Evaluation {
   }
   bootstrap_test?: Record<string, Record<string, BootstrapEntry>>
   alert_burden_test?: { by_kind: Record<string, number>; total_alerts_per_day: number }
+  versions?: { current: number | string; v1?: VersionSummary; latest?: VersionSummary; changes?: string[] }
+  alert_policy?: { dev?: AlertPolicyResult; test?: AlertPolicyResult; external_t2d?: AlertPolicyResult }
+  foundation_model?: {
+    model: string
+    context_slots?: number
+    protocol?: string
+    test?: FoundationBlock
+    dev?: FoundationBlock
+  }
+  per_patient_test?: Record<string, Record<string, PerPatientMetric>>
+  noise_experiment_dev?: {
+    train_noise_sd: number[]
+    eval_noise_sd: number[]
+    /** horizon -> "v1_clean_training|sd=10" -> { mae, mae_persistence } */
+    results: Record<string, Record<string, { mae: number; mae_persistence: number }>>
+    decision?: {
+      clean_60_relative_change: number
+      noisy10_30_relative_gain: number
+      noisy10_30_beats_persistence: boolean
+      adopt_v2: boolean
+      rule: string
+    }
+  }
   robustness_test?: Record<string, RobustnessEntry>
   subgroups_test?: Record<string, SubgroupEntry>
   importance_test?: Record<string, ImportanceEntry>

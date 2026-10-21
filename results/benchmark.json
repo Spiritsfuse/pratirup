@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated_at": "2026-10-21T17:09:11",
+    "generated_at": "2026-10-21T17:33:12",
     "dev_stage": {
       "stage": "dev",
       "generated_at": "2026-10-21T17:06:24",
@@ -4551,7 +4551,7 @@
       "noise10_mae_30": 19.593762379106508,
       "noise10_mae_30_persistence": 15.224438654373913,
       "alerts_per_day": 7.925937168007285,
-      "false_alerts_per_day": null,
+      "false_alerts_per_day": 5.98330550918197,
       "alert_design": "three independent streams"
     },
     "latest": {
@@ -4575,7 +4575,7 @@
       "alert_design": "consolidated (<70 and >250, shared cooldown)"
     },
     "changes": [
-      "v2: every LightGBM model also trains on noise-augmented copies of the development recordings, with a signal-roughness feature (selected on development data only: results/experiments/noise_robustness_dev.json).",
+      "v2: every LightGBM model also trains on noise-augmented copies of the development recordings, with a signal-roughness feature; clean-data MAE rises 0.8-2.4% in exchange for robustness to sensor noise (selected on development data only: results/experiments/noise_robustness_dev.json).",
       "v2: one consolidated alert stream per patient for predicted <70 and >250 mg/dL with a shared 60-min cooldown, thresholds set on development data for <= 1 false alert per patient-day; '>180' became a ranking signal instead of an interruptive alert."
     ]
   }

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
-import type { TierName, WorklistPatient } from '../api/types'
-import { AgpBar, PriorityChip, RegimenChips, RiskMini, TIER_ORDER, glucoseTone, tierInfo } from '../components/clinical'
-import { TrendIcon } from '../components/icons'
+import type { Meta, TierName, WorklistPatient } from '../api/types'
+import { AgpBar, AlertBadge, PriorityChip, RegimenChips, RiskMini, TIER_ORDER, glucoseTone, tierInfo } from '../components/clinical'
+import { BellIcon, ChevronIcon, TrendIcon } from '../components/icons'
 import { ErrorState, LiveBadge, PageTitle, ProvChip, Skeleton, cx } from '../components/ui'
 import { useApi } from '../hooks/useApi'
 import { minutesAgo, pct, round, sexLabel } from '../lib/format'
@@ -27,7 +27,7 @@ function statusText(p: WorklistPatient): string {
   }
 }
 
-function PatientRow({ p, href }: { p: WorklistPatient; href: string }) {
+function PatientRow({ p, href, nowT }: { p: WorklistPatient; href: string; nowT: number }) {
   const s = p.summary
   const live = p.mode === 'live'
   const f = p.forecast_60
@@ -39,6 +39,7 @@ function PatientRow({ p, href }: { p: WorklistPatient; href: string }) {
         <div className="order-2 min-w-0 lg:order-none">
           <PriorityChip name={p.priority.name} />
           <p className="mt-1 text-xs leading-snug text-muted">{p.priority.reason}</p>
+          {p.alert && <AlertBadge alert={p.alert} nowT={nowT} className="mt-1.5" />}
         </div>
 
         {/* patient */}
@@ -123,6 +124,46 @@ function PatientRow({ p, href }: { p: WorklistPatient; href: string }) {
   )
 }
 
+/** "How alerts work": inline disclosure so it never overflows on a phone. Numbers come from /api/meta. */
+function AlertsExplainer({ meta }: { meta: Meta | null }) {
+  const [open, setOpen] = useState(false)
+  const id = useId()
+  const pol = meta?.alert_policy
+  const cooldown = pol?.cooldown_min ?? 60
+  const per = cooldown === 60 ? 'hour' : `${cooldown} min`
+  const budget = pol?.false_alert_budget_per_day ?? 1
+  return (
+    <div className="mb-4">
+      <button
+        type="button"
+        className="btn"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <BellIcon width={14} height={14} />
+        How alerts work
+        <ChevronIcon width={14} height={14} className={cx('transition-transform', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <div id={id} className="card mt-2 max-w-3xl border-accent/40 bg-accent-soft p-4 text-sm">
+          <h2 className="mb-1 text-base">Alerts</h2>
+          <p>
+            One alert stream per patient: predicted &lt; 70 or &gt; 250 mg/dL within 60 min, at most one alert per {per} (a low
+            can override). Rising above 180 is ranked, not alerted. Thresholds were set on development patients for ≤ {budget}{' '}
+            false alert per patient-day.
+          </p>
+          <p className="mt-2 text-xs text-muted">
+            The <span className="font-semibold text-ink">Alert</span> badge appears on a row for 60 minutes after an alert fires.
+            The <span className="font-semibold text-ink">Watch</span> tier is a ranking of raised risk, including a predicted rise
+            above 180, and does not interrupt anyone.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function HeaderRow() {
   return (
     <div
@@ -160,7 +201,7 @@ function Loading() {
 }
 
 export default function WorklistPage() {
-  const { t, link } = useApp()
+  const { t, link, meta } = useApp()
   const [poll, setPoll] = useState<number | undefined>(undefined)
   const wl = useApi((s) => api.worklist(t as number, s), [t], { enabled: t != null, pollMs: poll })
   const data = wl.data
@@ -213,7 +254,7 @@ export default function WorklistPage() {
               <ErrorState error={wl.error} onRetry={wl.reload} compact title="Showing the last loaded worklist" />
             </div>
           )}
-          <div className="mb-4 flex flex-wrap gap-2" aria-label="Patients by priority">
+          <div className="mb-3 flex flex-wrap gap-2" aria-label="Patients by priority">
             {groups.map((g) => (
               <a
                 key={g.name}
@@ -225,6 +266,8 @@ export default function WorklistPage() {
               </a>
             ))}
           </div>
+
+          <AlertsExplainer meta={meta} />
 
           <div className="space-y-6">
             {groups.map((g) => {
@@ -243,7 +286,12 @@ export default function WorklistPage() {
                     <HeaderRow />
                     <ul>
                       {g.items.map((p) => (
-                        <PatientRow key={p.recording_id} p={p} href={link(`/patients/${encodeURIComponent(p.recording_id)}`)} />
+                        <PatientRow
+                          key={p.recording_id}
+                          p={p}
+                          nowT={data.t}
+                          href={link(`/patients/${encodeURIComponent(p.recording_id)}`)}
+                        />
                       ))}
                     </ul>
                   </div>
@@ -254,8 +302,9 @@ export default function WorklistPage() {
 
           <p className="mt-5 max-w-3xl text-xs text-muted">
             Priority encodes consensus glucose targets (70 and 180 mg/dL, with 54 and 250 as level-2 thresholds) plus the
-            model's 60-minute risk estimates. Risk bars use a square-root scale so small probabilities stay visible; the tick marks the alert
-            threshold and the bar fills in colour once the estimate crosses it.
+            model's 60-minute risk estimates. Risk bars use a square-root scale so small probabilities stay visible. On the &lt;70 and
+            &gt;250 bars the dark tick is the alert threshold and the bar fills in colour once the estimate crosses it; the &gt;180 bar is a
+            ranking signal with no alert, so its tick is only a reference.
           </p>
         </>
       )}
