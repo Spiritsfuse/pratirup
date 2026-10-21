@@ -1,7 +1,7 @@
 # Pratirup: self-contained image with the trained model, processed open data,
 # benchmark results and the built web app. No network access or secrets needed.
 
-FROM node:22-alpine AS web
+FROM node:26-alpine AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
