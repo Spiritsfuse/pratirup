@@ -170,6 +170,45 @@ def fig_ablation(test: dict) -> str:
     return path.name
 
 
+def _summary(test: dict | None) -> dict | None:
+    if not test:
+        return None
+    ft = test["forecast_test"]
+    ev = test["events_test"]
+    burden = sum(ev[k]["classifier"]["event"]["alerts_per_day"] for k in ev)
+    pol = test.get("alert_policy_test")
+    return {
+        "model_version": test["meta"].get("model_version", "1"),
+        "evaluated_at": test["meta"]["evaluated_at"],
+        "mae": {h: ft[h]["lgbm[full]"]["mae"] for h in ft},
+        "mae_persistence": {h: ft[h]["persistence"]["mae"] for h in ft},
+        "coverage_60": test["intervals_test"]["60"]["personal"]["coverage"],
+        "noise10_mae_30": test["robustness_test"]["noise10"]["mae_30_lgbm"],
+        "noise10_mae_30_persistence": test["robustness_test"]["noise10"]["mae_30_persistence"],
+        "alerts_per_day": pol["alerts_per_day"] if pol else burden,
+        "false_alerts_per_day": pol["false_alerts_per_day"] if pol else None,
+        "alert_design": "consolidated (<70 and >250, shared cooldown)" if pol else "three independent streams",
+    }
+
+
+def _versions(test: dict | None) -> dict:
+    v1_path = RESULTS_DIR / "v1" / "test.json"
+    v1 = json.loads(v1_path.read_text()) if v1_path.exists() else None
+    current = _summary(test)
+    return {
+        "current": current["model_version"] if current else None,
+        "v1": _summary(v1) if v1 and (not current or current["model_version"] != "1") else None,
+        "latest": current,
+        "changes": [
+            "v2: every LightGBM model also trains on noise-augmented copies of the development recordings, with a "
+            "signal-roughness feature (selected on development data only: results/experiments/noise_robustness_dev.json).",
+            "v2: one consolidated alert stream per patient for predicted <70 and >250 mg/dL with a shared 60-min "
+            "cooldown, thresholds set on development data for <= 1 false alert per patient-day; '>180' became a "
+            "ranking signal instead of an interruptive alert.",
+        ],
+    }
+
+
 def main() -> None:
     dev = json.loads((RESULTS_DIR / "dev_cv.json").read_text())
     test_path = RESULTS_DIR / "test.json"
@@ -225,8 +264,27 @@ def main() -> None:
         FIG.mkdir(parents=True, exist_ok=True)
         pred = pd.read_parquet(RESULTS_DIR / "test_predictions.parquet")
         out["figures"] = [fig_mae(test), fig_parkes(pred), fig_calibration(test), fig_trace(pred), fig_ablation(test)]
+        per_patient = {}
+        for h, d in pred.groupby("horizon"):
+            rows = {}
+            for k in ("persistence", "lgbm[full]", "lgbm[full]+personal"):
+                e = d.assign(err=d[k] - d["y"]).groupby("patient_id")["err"]
+                mae, rmse = e.apply(lambda x: x.abs().mean()), e.apply(lambda x: (x ** 2).mean() ** 0.5)
+                rows[k] = {"mae_mean": float(mae.mean()), "mae_sd": float(mae.std()),
+                           "rmse_mean": float(rmse.mean()), "rmse_sd": float(rmse.std())}
+            per_patient[str(int(h))] = rows
+        out["per_patient_test"] = per_patient
     if external:
         out["external"] = external
+    fm_path = RESULTS_DIR / "experiments" / "foundation_model_zero_shot.json"
+    if fm_path.exists():
+        out["foundation_model"] = json.loads(fm_path.read_text())
+    nr_path = RESULTS_DIR / "experiments" / "noise_robustness_dev.json"
+    if nr_path.exists():
+        out["noise_experiment_dev"] = json.loads(nr_path.read_text())
+    out["alert_policy"] = {"dev": dev.get("alert_policy_dev"), "test": (test or {}).get("alert_policy_test"),
+                           "external_t2d": (external or {}).get("alert_policy_t2d")}
+    out["versions"] = _versions(test)
     (RESULTS_DIR / "benchmark.json").write_text(json.dumps(out, indent=2, default=float))
     print(f"Wrote {RESULTS_DIR / 'benchmark.json'} with figures {out['figures']}")
 

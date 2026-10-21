@@ -71,7 +71,7 @@ def event_table() -> str:
 
 def robustness_table() -> str:
     names = {"drop10": "10% of readings missing", "drop30": "30% of readings missing", "gap60_daily": "1-h gap every day",
-             "noise10": "±10 mg/dL random noise", "noise20": "±20 mg/dL random noise"}
+             "noise5": "Random noise, SD 5 mg/dL", "noise10": "Random noise, SD 10 mg/dL", "noise20": "Random noise, SD 20 mg/dL", "arnoise10": "Correlated noise (AR(1), rho 0.7), SD 10 mg/dL"}
     rows = ["| Perturbation | No forecast issued (missing reading or < 8 readings in 3 h) | MAE 30 min (Pratirup / last value) | MAE 60 min (Pratirup / last value) | Coverage 60 min |",
             "|---|---|---|---|---|"]
     for k, v in B["robustness_test"].items():

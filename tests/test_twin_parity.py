@@ -60,3 +60,4 @@ def test_live_equals_replay(setup):
             a, b = state[f"p_{kind}"], st.loc[slot, f"p_{kind}"]
             assert (np.isnan(a) and np.isnan(b)) or abs(a - b) < 1e-9
             assert bool(state[f"alert_{kind}"]) == bool(st.loc[slot, f"alert_{kind}"])
+        assert state.get("alert") == (st.loc[slot, "alert"] if isinstance(st.loc[slot, "alert"], str) else None)

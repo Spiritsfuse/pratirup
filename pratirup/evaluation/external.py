@@ -189,6 +189,20 @@ def run_external() -> dict:
         ev[grp] = {"sample": M.sample_event_metrics(d["ev_hyper"].to_numpy(), p),
                    "event": M.event_level(recs, bundle.thresholds["hyper"])}
 
+    # Consolidated alert policy (v2) in the T2D participants.
+    pol = bundle.meta.get("alert_policy")
+    pol_res = None
+    if pol:
+        from pratirup.evaluation import alerts as A
+        from pratirup.evaluation.benchmark import _policy_records
+        d = data[data["group"] == "t2d"].reset_index(drop=True)
+        pr = {k: bundle.calibrators[k](bundle.classifiers[k].predict(d[bundle.features])) for k in A.ALERT_KINDS}
+        g0 = d["g0"].to_numpy()
+        key = pd.MultiIndex.from_arrays([d["recording_id"], d["slot"]])
+        probs = {"hypo": pd.Series(np.where(g0 >= 70, pr["hypo"], np.nan), index=key),
+                 "hyper2": pd.Series(np.where(g0 <= 250, pr["hyper2"], np.nan), index=key)}
+        pol_res = A.evaluate_policy(_policy_records(d, glucose, probs), pol["thresholds"])
+
     # Wearable experiment inside CGMacros (participant-grouped CV).
     rng = np.random.default_rng(SEED)
     subj = np.array(sorted(data["recording_id"].unique()))
@@ -227,6 +241,7 @@ def run_external() -> dict:
         ],
         "transfer": transfer,
         "hyper_alerts": ev,
+        "alert_policy_t2d": pol_res,
         "wearables": wear,
     }
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

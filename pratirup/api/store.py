@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS twin_state (
   exp_tar REAL, exp_tbr REAL, n_missing_3h REAL, issuable INTEGER,
   p_hyper REAL, p_hyper2 REAL, p_hypo REAL,
   alert_hyper INTEGER, alert_hyper2 INTEGER, alert_hypo INTEGER,
-  bias_30 REAL, bias_60 REAL, bias_120 REAL,
+  bias_30 REAL, bias_60 REAL, bias_120 REAL, alert TEXT,
   PRIMARY KEY (rid, slot)
 );
 CREATE TABLE IF NOT EXISTS forecast (
@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS ix_ev ON event (rid, demo_min);
 STATE_COLS = ["rid", "slot", "demo_min", "ts", "glucose", "kf_level", "kf_slope", "kf_level_sd",
               "exp_mean", "exp_sd", "exp_tar", "exp_tbr", "n_missing_3h", "issuable",
               "p_hyper", "p_hyper2", "p_hypo", "alert_hyper", "alert_hyper2", "alert_hypo",
-              "bias_30", "bias_60", "bias_120"]
+              "bias_30", "bias_60", "bias_120", "alert"]
 
 ORAL_NAMES = {"rx_biguanide": "metformin", "rx_sulfonylurea": "sulfonylurea", "rx_glinide": "glinide",
               "rx_agi": "alpha-glucosidase inhibitor", "rx_dpp4": "DPP-4 inhibitor", "rx_sglt2": "SGLT2 inhibitor",
@@ -162,8 +162,11 @@ class Store:
                 self.features[rid] = build_features(s, self.bundle.kalman)
             return
         with self.lock, self.conn:
+            # The database is a cache of the bundle and code: drop and recreate the
+            # tables so a schema change can never meet a stale layout.
             for t in ("recording", "observation", "fingerstick", "event", "twin_state", "forecast"):
-                self.conn.execute(f"DELETE FROM {t}")
+                self.conn.execute(f"DROP TABLE IF EXISTS {t}")
+            self.conn.executescript(SCHEMA)
             for _, rec in recs.iterrows():
                 self._write_replay(rec)
             self.conn.execute("INSERT OR REPLACE INTO meta VALUES ('fingerprint', ?)", (fp,))

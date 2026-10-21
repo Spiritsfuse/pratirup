@@ -61,15 +61,24 @@ def _inner_split(patients: np.ndarray, rng: np.random.Generator, frac: float = 0
     return np.isin(patients, rng.choice(uniq, size=k, replace=False))
 
 
+Extra = tuple  # (X, y, patients, folds) of training-only augmented rows
+
+
 def fit(X: pd.DataFrame, y: np.ndarray, params: dict, n_iter: int, objective: str = "regression",
-        alpha: float | None = None) -> lgb.Booster:
+        alpha: float | None = None, extra: Extra | None = None) -> lgb.Booster:
     p = {**BASE_PARAMS, **params, **_objective_params(objective, alpha)}
+    if extra is not None:
+        X = pd.concat([X, extra[0]], ignore_index=True)
+        y = np.concatenate([y, extra[1]])
     return lgb.train(p, lgb.Dataset(X, y, free_raw_data=False), num_boost_round=n_iter)
 
 
 def cross_validate(X: pd.DataFrame, y: np.ndarray, patients: np.ndarray, folds: np.ndarray,
                    params: dict | None = None, objective: str = "regression",
-                   alpha: float | None = None) -> CVResult:
+                   alpha: float | None = None, extra: Extra | None = None) -> CVResult:
+    """`extra` holds augmented rows used for training only: they join the
+    training folds, never the early-stopping set or the scored fold, and a
+    patient's augmented rows are dropped whenever that patient is held out."""
     params = params or {}
     p = {**BASE_PARAMS, **params, **_objective_params(objective, alpha)}
     oof = np.full(len(y), np.nan)
@@ -79,7 +88,14 @@ def cross_validate(X: pd.DataFrame, y: np.ndarray, patients: np.ndarray, folds: 
         tr, va = folds != k, folds == k
         inner = _inner_split(patients[tr], rng)
         Xtr, ytr = X[tr], y[tr]
-        dtr = lgb.Dataset(Xtr[~inner], ytr[~inner])
+        Xfit, yfit = Xtr[~inner], ytr[~inner]
+        if extra is not None:
+            Xe, ye, pe, fe = extra
+            held = set(patients[tr][inner])
+            keep = (fe != k) & ~np.isin(pe, list(held))
+            Xfit = pd.concat([Xfit, Xe[keep]], ignore_index=True)
+            yfit = np.concatenate([yfit, ye[keep]])
+        dtr = lgb.Dataset(Xfit, yfit)
         des = lgb.Dataset(Xtr[inner], ytr[inner], reference=dtr)
         booster = lgb.train(p, dtr, num_boost_round=MAX_ROUNDS, valid_sets=[des],
                             callbacks=[lgb.early_stopping(EARLY_STOP, verbose=False)])

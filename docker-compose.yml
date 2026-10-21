@@ -1,0 +1,19 @@
+# Hardened local deployment: read-only root filesystem, no Linux capabilities,
+# no privilege escalation, memory-capped, healthchecked. The only writable
+# paths are in-memory tmpfs mounts (the SQLite cache is rebuilt at start).
+services:
+  pratirup:
+    build: .
+    image: pratirup:latest
+    ports:
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    tmpfs:
+      - /app/var:uid=10001,gid=10001
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    pids_limit: 256
+    restart: unless-stopped

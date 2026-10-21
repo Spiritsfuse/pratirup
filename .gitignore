@@ -24,3 +24,6 @@ web/.vite/
 Thumbs.db
 .idea/
 .vscode/
+
+# Team-only material (explainer, video script, notes): never published
+team/

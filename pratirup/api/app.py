@@ -165,7 +165,12 @@ def _risk(state) -> dict:
     return out
 
 
-def _priority(state, status: str, stats: dict, risk: dict) -> tuple[int, str, str]:
+def _recent_alert(rid: str, t: int, minutes: int = 60):
+    return store().one("SELECT demo_min, alert FROM twin_state WHERE rid=? AND alert IS NOT NULL AND demo_min<=? AND demo_min>? "
+                       "ORDER BY demo_min DESC LIMIT 1", (rid, t, t - minutes))
+
+
+def _priority(state, status: str, stats: dict, risk: dict, alert=None) -> tuple[int, str, str]:
     """Lower tier = review first. Encodes consensus targets, not model output alone."""
     g = _f(state["glucose"]) if state is not None else None
     if status in ("not_started", "warming_up"):
@@ -178,10 +183,13 @@ def _priority(state, status: str, stats: dict, risk: dict) -> tuple[int, str, st
         return 0, "urgent", f"Glucose {g:.0f} mg/dL, below 54"
     if g is not None and g < HYPO:
         return 0, "urgent", f"Glucose {g:.0f} mg/dL, below 70"
-    if risk["hypo"]["above_threshold"]:
-        return 1, "act", "Predicted to fall below 70 within 60 min"
+    if alert is not None:
+        what = "fall below 70" if alert["alert"] == "hypo" else "exceed 250"
+        return 1, "act", f"Alert: predicted to {what} within 60 min"
     if g is not None and g > HYPER_L2:
         return 1, "act", f"Glucose {g:.0f} mg/dL, above 250"
+    if risk["hypo"]["above_threshold"]:
+        return 2, "watch", "Raised risk of falling below 70 within 60 min"
     if risk["hyper2"]["above_threshold"]:
         return 2, "watch", "Predicted to exceed 250 within 60 min"
     if risk["hyper"]["above_threshold"]:
@@ -278,6 +286,8 @@ def meta():
         "thresholds_mgdl": {"hypo_l2": HYPO_L2, "hypo": HYPO, "hyper": HYPER, "hyper_l2": HYPER_L2},
         "horizons_min": list(HORIZONS_MIN),
         "alert_thresholds": b.thresholds,
+        "alert_policy": b.meta.get("alert_policy"),
+        "model_version": b.meta.get("version", "1"),
         "model": {k: b.meta.get(k) for k in ("trained_at", "git_commit", "train_patients", "seed")},
         "personalisation": {str(k): v for k, v in b.personal.items()},
         "provenance": {
@@ -302,7 +312,8 @@ def worklist(t: int | None = None):
         status, since = _status(rec, tt, state)
         stats = _range_stats(rec["rid"], tt)
         risk = _risk(state if status == "monitoring" else None)
-        tier, tier_name, reason = _priority(state, status, stats, risk)
+        alert = _recent_alert(rec["rid"], tt) if status == "monitoring" else None
+        tier, tier_name, reason = _priority(state, status, stats, risk, alert)
         fc = None
         if state is not None and status == "monitoring":
             r60 = s.one("SELECT * FROM forecast WHERE rid=? AND issue_slot=? AND horizon=60", (rec["rid"], state["slot"]))
@@ -314,6 +325,7 @@ def worklist(t: int | None = None):
             "glucose": _f(state["glucose"]) if state is not None else None,
             "trend": trend_arrow(float(state["kf_slope"])) if state is not None and state["kf_slope"] is not None else None,
             "forecast_60": fc, "risk": risk, "stats_24h": stats,
+            "alert": ({"kind": alert["alert"], "t": alert["demo_min"], "label": EVENT_LABEL[alert["alert"]]} if alert else None),
             "priority": {"tier": tier, "name": tier_name, "reason": reason},
         })
     out.sort(key=lambda r: (r["priority"]["tier"], -(r["risk"]["hypo"]["p"] or 0), -(r["risk"]["hyper"]["p"] or 0)))
@@ -341,8 +353,8 @@ def twin(rid: str, t: int | None = None, window_h: int = 24, horizon: int = 60):
                  (rid, lo_t, tt))
     ev = s.query("SELECT demo_min t, kind, detail, amount, unit, category FROM event WHERE rid=? AND demo_min>? AND demo_min<=? ORDER BY demo_min",
                  (rid, lo_t, tt))
-    alerts = s.query("SELECT demo_min t, alert_hyper, alert_hyper2, alert_hypo FROM twin_state WHERE rid=? AND demo_min>? AND demo_min<=? "
-                     "AND (alert_hyper=1 OR alert_hyper2=1 OR alert_hypo=1) ORDER BY demo_min", (rid, lo_t, tt))
+    alerts = s.query("SELECT demo_min t, alert FROM twin_state WHERE rid=? AND demo_min>? AND demo_min<=? "
+                     "AND alert IS NOT NULL ORDER BY demo_min", (rid, lo_t, tt))
     past = s.query(
         "SELECT issue_demo, target_demo, yhat, lo, hi, yhat_pop, CASE WHEN target_demo<=? THEN actual END actual "
         "FROM forecast WHERE rid=? AND horizon=? AND target_demo>? AND issue_demo<=? ORDER BY issue_demo",
@@ -354,7 +366,7 @@ def twin(rid: str, t: int | None = None, window_h: int = 24, horizon: int = 60):
         "observations": [dict(r) for r in obs],
         "fingersticks": [dict(r) for r in fs],
         "events": [dict(r) for r in ev],
-        "recent_alerts": [{"t": r["t"], "kinds": [k for k in EVENT_KINDS if r[f"alert_{k}"]]} for r in alerts],
+        "recent_alerts": [{"t": r["t"], "kinds": [r["alert"]]} for r in alerts],
         "past_forecasts": [{"issued_t": r["issue_demo"], "target_t": r["target_demo"], "yhat": r["yhat"],
                             "lo": r["lo"], "hi": r["hi"], "yhat_population": r["yhat_pop"], "actual": r["actual"]}
                            for r in past],
@@ -376,7 +388,8 @@ def twin(rid: str, t: int | None = None, window_h: int = 24, horizon: int = 60):
                    "level_sd": _f(state["kf_level_sd"])},
         "trend": trend_arrow(float(state["kf_slope"])),
         "profile": {"mean": _f(state["exp_mean"]), "sd": _f(state["exp_sd"]), "tar": _f(state["exp_tar"]), "tbr": _f(state["exp_tbr"])},
-        "data_quality": {"readings_last_3h": n_ok, "expected_last_3h": 12, "issuable": bool(state["issuable"])},
+        "data_quality": {"readings_last_3h": n_ok, "expected_last_3h": 12, "issuable": bool(state["issuable"]),
+                         "signal_roughness_mgdl": None},
         "personal_correction": {str(h): _f(state[f"bias_{h}"]) for h in HORIZONS_MIN},
     }
     if not state["issuable"]:
@@ -386,6 +399,8 @@ def twin(rid: str, t: int | None = None, window_h: int = 24, horizon: int = 60):
                  (rid, slot))
     risk = _risk(state)
     feats = _features_for(rec, slot)
+    if feats is not None:
+        body["state"]["data_quality"]["signal_roughness_mgdl"] = _f(feats.get("roughness_3h"))
     drivers = {}
     if feats is not None:
         X = feats.to_frame().T.apply(pd.to_numeric, errors="coerce")
@@ -402,7 +417,8 @@ def twin(rid: str, t: int | None = None, window_h: int = 24, horizon: int = 60):
         "horizons": [{"horizon": r["horizon"], "target_t": r["target_demo"], "yhat": r["yhat"], "lo": r["lo"],
                       "hi": r["hi"], "yhat_population": r["yhat_pop"], "primary": r["horizon"] in (30, 60)} for r in fc],
         "risk": risk,
-        "active_alerts": [k for k in EVENT_KINDS if state[f"alert_{k}"]],
+        "active_alerts": [state["alert"]] if state["alert"] else [],
+        "alert": ({"kind": state["alert"], "label": EVENT_LABEL[state["alert"]]} if state["alert"] else None),
         "drivers": drivers,
     }
     return body
@@ -446,6 +462,54 @@ def ledger(rid: str, t: int | None = None, horizon: int = 60, limit: int = 400):
         "entries": [{"issued_t": int(r.issue_demo), "target_t": int(r.target_demo), "yhat": r.yhat, "lo": r.lo, "hi": r.hi,
                      "actual": r.actual, "error": r.yhat - r.actual, "inside": bool(r.lo <= r.actual <= r.hi),
                      "glucose_at_issue": _f(r.g0)} for r in entries.itertuples()],
+    }
+
+
+@app.get("/api/patients/{rid}/agp")
+def agp(rid: str, t: int | None = None, days: int = 14):
+    """Ambulatory Glucose Profile (International Consensus, Battelino 2019): glucose
+    percentiles by time of day across the wear so far, plus the standard metrics.
+    Uses only readings at or before t."""
+    s = store()
+    rec = _rec(rid)
+    tt = _resolve_t(rec, t)
+    rows = s.query("SELECT demo_min, glucose FROM observation WHERE rid=? AND demo_min<=? AND demo_min>? ORDER BY demo_min",
+                   (rid, tt, tt - days * 1440))
+    if len(rows) < 96:
+        return {"recording_id": rid, "t": tt, "available": False,
+                "reason": "AGP needs at least 24 h of CGM data", "n_readings": len(rows)}
+    df = pd.DataFrame([dict(r) for r in rows])
+    df["tod"] = df["demo_min"] % 1440
+    g = df["glucose"].to_numpy()
+    bins = []
+    for start in range(0, 1440, 30):
+        # 60-min centred window per 30-min bin smooths the curves, as AGP software does.
+        lo, hi = (start - 15) % 1440, (start + 45) % 1440
+        sel = (df["tod"] >= lo) & (df["tod"] < hi) if lo < hi else (df["tod"] >= lo) | (df["tod"] < hi)
+        v = df.loc[sel, "glucose"].to_numpy()
+        if len(v) < 3:
+            bins.append({"tod": start + 15, "n": int(len(v))})
+            continue
+        q = np.percentile(v, [5, 25, 50, 75, 95])
+        bins.append({"tod": start + 15, "n": int(len(v)), "p5": q[0], "p25": q[1], "p50": q[2], "p75": q[3], "p95": q[4]})
+    span_days = (df["demo_min"].max() - df["demo_min"].min()) / 1440
+    mean = float(g.mean())
+    return {
+        "recording_id": rid, "t": tt, "available": True, "days": float(span_days), "n_readings": int(len(g)),
+        "coverage": float(min(1.0, len(g) / max(1, span_days * 96))),
+        "sufficient": bool(span_days >= 13.5 and len(g) / max(1, span_days * 96) >= 0.7),
+        "sufficiency_note": "The consensus recommends 14 days with >= 70% CGM data for a reliable AGP; fewer days are shown for context.",
+        "mean": mean, "gmi_pct": float(3.31 + 0.02392 * mean), "cv_pct": float(g.std() / mean * 100),
+        "ranges": {
+            "very_low": float(np.mean(g < HYPO_L2)), "low": float(np.mean((g >= HYPO_L2) & (g < HYPO))),
+            "in_range": float(np.mean((g >= HYPO) & (g <= HYPER))), "high": float(np.mean((g > HYPER) & (g <= HYPER_L2))),
+            "very_high": float(np.mean(g > HYPER_L2)),
+        },
+        "gri": float(min(100.0, 3.0 * np.mean(g < HYPO_L2) * 100 + 2.4 * np.mean((g >= HYPO_L2) & (g < HYPO)) * 100
+                         + 1.6 * np.mean(g > HYPER_L2) * 100 + 0.8 * np.mean((g > HYPER) & (g <= HYPER_L2)) * 100)),
+        "targets": {"in_range": ">70%", "low_total": "<4%", "very_low": "<1%", "high_total": "<25%", "very_high": "<5%", "cv_pct": "<=36%"},
+        "profile": bins,
+        "note": "AGP per the International Consensus on Time in Range (Battelino et al., Diabetes Care 2019). GMI = 3.31 + 0.02392 x mean glucose (mg/dL). GRI (Klonoff et al., J Diabetes Sci Technol 2023) = 3.0 VLow + 2.4 Low + 1.6 VHigh + 0.8 High (in % of time), capped at 100.",
     }
 
 
