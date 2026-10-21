@@ -30,6 +30,7 @@ from pratirup.config import ALERT_REFRACTORY_MIN, HORIZONS_MIN, HYPER, HYPER_L2,
 from pratirup.features import Series, build_features
 from pratirup.models.bundle import EVENT_KINDS, ModelBundle
 from pratirup.twin import kalman as K
+from pratirup.evaluation.alerts import ALERT_KINDS, run_policy
 
 REFRACTORY_SLOTS = ALERT_REFRACTORY_MIN // STEP_MIN
 STATE_COLUMNS = [
@@ -129,6 +130,12 @@ def replay_outputs(s: Series, bundle: ModelBundle) -> ReplayOutputs:
         state.loc[slots, f"alert_{kind}"] = _sequential_alerts(slots, p, bundle.thresholds[kind])
     for kind in EVENT_KINDS:
         state[f"alert_{kind}"] = state[f"alert_{kind}"].fillna(False).astype(bool)
+    state["alert"] = None
+    pol = bundle.meta.get("alert_policy")
+    if pol:
+        probs = {k: state.loc[slots, f"p_{k}"].to_numpy(dtype=float) for k in ALERT_KINDS}
+        for s_, kind in run_policy(slots, probs, pol["thresholds"]):
+            state.loc[s_, "alert"] = kind
     return ReplayOutputs(features=feats, state=state, forecasts=pd.concat(rows, ignore_index=True))
 
 
@@ -165,6 +172,8 @@ class LiveTwin:
         self.ewm = {h: EWM(bundle.personal[h]["halflife"]) for h in HORIZONS_MIN}
         self.pending: dict[int, dict[int, tuple[int, float]]] = {h: {} for h in HORIZONS_MIN}
         self.last_alert = {k: -10**9 for k in EVENT_KINDS}
+        self.policy = bundle.meta.get("alert_policy")
+        self.policy_last_slot, self.policy_last_kind = -10**9, None
 
     def slot_of(self, ts: pd.Timestamp) -> int:
         return int(round((pd.Timestamp(ts) - self.t0).total_seconds() / 60 / STEP_MIN))
@@ -267,7 +276,22 @@ class LiveTwin:
             state[f"alert_{kind}"] = bool(fire)
             if fire:
                 self.last_alert[kind] = slot
+        # Consolidated alert stream (same rule as evaluation.alerts.run_policy).
+        state["alert"] = None
+        if self.policy:
+            refr = REFRACTORY_SLOTS
+            for kind in ALERT_KINDS:
+                v = state[f"p_{kind}"]
+                if not np.isfinite(v) or v < self.policy["thresholds"][kind]:
+                    continue
+                cooling = slot - self.policy_last_slot < refr
+                breakthrough = kind == "hypo" and self.policy_last_kind == "hyper2"
+                if cooling and not breakthrough:
+                    break
+                state["alert"] = kind
+                self.policy_last_slot, self.policy_last_kind = slot, kind
                 upd.alerts.append(kind)
+                break
         upd.state = state
         return upd
 

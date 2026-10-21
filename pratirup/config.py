@@ -5,6 +5,7 @@ Clinical thresholds follow the International Consensus on Time in Range
 is evaluated, and must not be tuned against results.
 """
 
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,7 +13,8 @@ DATA_RAW = ROOT / "data" / "raw"
 DATA_PROCESSED = ROOT / "data" / "processed"
 MODELS_DIR = ROOT / "models"
 RESULTS_DIR = ROOT / "results"
-VAR_DIR = ROOT / "var"
+# Writable runtime cache (SQLite). Override on hosts with a read-only app directory.
+VAR_DIR = Path(os.environ.get("PRATIRUP_VAR_DIR", ROOT / "var"))
 
 # Sampling grid. ShanghaiT2DM CGM (Abbott FreeStyle Libre H) reports every 15 min.
 STEP_MIN = 15

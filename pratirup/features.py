@@ -39,7 +39,7 @@ LAG_DIFFS = (1, 2, 3, 4, 6, 8, 12)
 CGM_FEATURES = (
     ["g0"] + [f"d{k}" for k in LAG_DIFFS]
     + ["accel", "mean_1h", "sd_1h", "min_1h", "max_1h", "mean_3h", "sd_3h", "min_3h", "max_3h",
-       "n_missing_3h", "kf_level", "kf_slope", "kf_level_sd", "kf_slope_sd", "kf_resid"]
+       "n_missing_3h", "roughness_3h", "kf_level", "kf_slope", "kf_level_sd", "kf_slope_sd", "kf_resid"]
 )
 TIME_FEATURES = ["tod_sin", "tod_cos", "hours_since_start"]
 EVENT_FEATURES = [
@@ -181,6 +181,11 @@ def build_features(s: Series, kp: KalmanParams, kf: np.ndarray | None = None) ->
         f[f"min_{name}"] = r.min().to_numpy()
         f[f"max_{name}"] = r.max().to_numpy()
     f["n_missing_3h"] = pd.Series(np.isnan(g).astype(float)).rolling(LOOKBACK_SLOTS, min_periods=1).sum().to_numpy()
+    # Signal roughness: SD of second differences over the last 3 h. Smooth sensor
+    # output gives small values; uncorrelated noise inflates it, which lets a
+    # noise-aware model discount reading-to-reading change.
+    second = pd.Series(g - 2 * gs.shift(1).to_numpy() + gs.shift(2).to_numpy())
+    f["roughness_3h"] = second.rolling(LOOKBACK_SLOTS, min_periods=4).std().to_numpy()
     if kf is None:
         kf = filter_series(g, kp)
     f["kf_level"], f["kf_slope"], f["kf_level_sd"], f["kf_slope_sd"] = kf.T

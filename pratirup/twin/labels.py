@@ -19,6 +19,7 @@ FEATURE_LABELS: dict[str, str] = {
     "min_3h": "Lowest glucose, last 3 h",
     "max_3h": "Highest glucose, last 3 h",
     "n_missing_3h": "Missing readings, last 3 h",
+    "roughness_3h": "Signal roughness (sensor noise), last 3 h",
     "kf_level": "Filtered glucose level",
     "kf_slope": "Filtered rate of change",
     "kf_level_sd": "Uncertainty of filtered level",
@@ -92,7 +93,7 @@ FEATURE_LABELS: dict[str, str] = {
 
 FEATURE_SOURCE: dict[str, str] = {}
 for _k in FEATURE_LABELS:
-    if _k.startswith(("g0", "d", "accel", "mean_", "sd_", "min_1", "min_3", "max_", "n_missing", "kf_")) and not _k.startswith("diabetes"):
+    if _k.startswith(("g0", "d", "accel", "mean_", "sd_", "min_1", "min_3", "max_", "n_missing", "kf_", "roughness")) and not _k.startswith("diabetes"):
         FEATURE_SOURCE[_k] = "cgm"
     elif _k in ("tod_sin", "tod_cos", "hours_since_start"):
         FEATURE_SOURCE[_k] = "time"

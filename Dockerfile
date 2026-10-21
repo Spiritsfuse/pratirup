@@ -21,8 +21,10 @@ COPY data/processed/ data/processed/
 COPY models/ models/
 COPY results/ results/
 COPY --from=web /web/dist web/dist
-RUN useradd --create-home pratirup && chown -R pratirup /app
-USER pratirup
+# /app/var is world-writable (sticky) so hosts that run the image under another
+# uid (e.g. Hugging Face Spaces uses 1000) can still write the SQLite cache.
+RUN useradd --uid 10001 --create-home pratirup && mkdir -p /app/var && chown -R pratirup /app && chmod 1777 /app/var
+USER 10001
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"
 CMD ["python", "-m", "pratirup.cli", "serve", "--host", "0.0.0.0", "--port", "8000"]

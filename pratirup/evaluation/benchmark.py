@@ -37,6 +37,7 @@ from pratirup.features import (
 from pratirup.models import lgbm
 from pratirup.models import seq as gru
 from pratirup.models.bundle import EVENT_KINDS, Isotonic, ModelBundle, personal_bias
+from pratirup.evaluation import alerts as A
 from pratirup.twin.kalman import KalmanParams, damped_forecast, filter_series
 
 ALPHA = 1 - PI_COVERAGE
@@ -48,6 +49,10 @@ TUNING_GRID = [
         (31, 800, 0.8, 1.0), (31, 300, 0.5, 1.0), (31, 300, 0.8, 10.0), (15, 800, 0.5, 10.0),
     ]
 ]
+MODEL_VERSION = "2"
+# v2: every LightGBM model also trains on noise-augmented copies of the development
+# recordings (selected by scripts/exp_noise_robustness.py on dev data only).
+TRAIN_NOISE_SD = (5.0, 10.0, 15.0)
 PERSONAL_GRID = {"lambda": [0.0, 0.25, 0.5, 0.75, 1.0], "halflife": [4, 12, 24, 48, 96]}
 
 
@@ -132,6 +137,40 @@ def _rule_scores(df: pd.DataFrame, kp: KalmanParams, kind: str) -> dict[str, np.
     return {"trend_rule": trend.max(0), "kalman_rule": kal.max(0)}
 
 
+def build_augmented(series: dict, kp: KalmanParams, fold_of: dict) -> pd.DataFrame:
+    """Noisy copies of each development recording: features from a perturbed
+    series (noise SD drawn from TRAIN_NOISE_SD), targets from the clean series."""
+    from pratirup.features import build_features, build_targets
+    rng = np.random.default_rng(SEED + 1)
+    parts = []
+    for rid in sorted(series):
+        s = series[rid]
+        sd = float(rng.choice(TRAIN_NOISE_SD))
+        ns = _perturb(s, f"noise{sd:g}", rng)
+        parts.append(pd.concat([build_features(ns, kp), build_targets(s)], axis=1))
+    aug = pd.concat(parts, ignore_index=True)
+    aug = aug[aug["issuable"]].reset_index(drop=True)
+    aug["fold"] = aug["patient_id"].map(fold_of).astype(int)
+    return aug
+
+
+def _policy_records(data: pd.DataFrame, glucose_by_rec: dict, probs: dict[str, pd.Series]) -> list[dict]:
+    """Per-recording inputs for the consolidated alert policy. probs[kind] is
+    indexed by (recording_id, slot); slots where a kind is not at risk are NaN."""
+    out = []
+    for rid, idx in data.groupby("recording_id", sort=False).indices.items():
+        sub = data.iloc[idx]
+        key = pd.MultiIndex.from_arrays([sub["recording_id"], sub["slot"]])
+        g = glucose_by_rec[rid]
+        out.append({
+            "slots": sub["slot"].to_numpy(),
+            "p": {k: probs[k].reindex(key).to_numpy() for k in A.ALERT_KINDS},
+            "onsets": {k: M.episode_onsets(g, k) for k in A.ALERT_KINDS},
+            "n_readings": int(np.isfinite(g).sum()),
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Stage: dev
 
@@ -157,6 +196,15 @@ def run_dev() -> dict:
     glucose_by_rec = {rid: s.glucose for rid, s in dev_series.items()}
     results: dict = {"kalman": {"params": kp.to_dict(), "n_trials": len(k_trials)}}
 
+    _log("Building noise-augmented training copies")
+    aug = build_augmented(dev_series, kp, fold_of)
+    results["augmentation"] = {"noise_sd_choices": list(TRAIN_NOISE_SD), "rows": int(len(aug))}
+
+    def ex(cols, target):
+        m = np.isfinite(aug[target].to_numpy())
+        a = aug[m]
+        return (a[cols].reset_index(drop=True), a[target].to_numpy(), a["patient_id"].to_numpy(), a["fold"].to_numpy())
+
     # Common evaluation rows per horizon: issuable, target present.
     rows = {h: np.isfinite(data[f"dy_{h}"].to_numpy()) for h in HORIZONS_MIN}
     rows_any = np.logical_or.reduce([rows[h] for h in HORIZONS_MIN])
@@ -181,7 +229,7 @@ def run_dev() -> dict:
     tuning = []
     for cfg in TUNING_GRID:
         cv = lgbm.cross_validate(d60[feats_full], d60["dy_60"].to_numpy(), d60["patient_id"].to_numpy(),
-                                 d60["fold"].to_numpy(), cfg)
+                                 d60["fold"].to_numpy(), cfg, extra=ex(feats_full, "dy_60"))
         mae = float(np.mean(np.abs(cv.oof - d60["dy_60"].to_numpy())))
         tuning.append({**cfg, "cv_mae": mae, "n_iter": cv.n_iter})
         _log(f"  {cfg} -> CV MAE {mae:.2f}")
@@ -211,7 +259,7 @@ def run_dev() -> dict:
         for name, feats in FEATURE_SETS.items():
             _log(f"  CV {h} min: lgbm[{name}]")
             cv = lgbm.cross_validate(d[feats], d[f"dy_{h}"].to_numpy(), d["patient_id"].to_numpy(),
-                                     d["fold"].to_numpy(), best_cfg)
+                                     d["fold"].to_numpy(), best_cfg, extra=ex(feats, f"dy_{h}"))
             preds[f"lgbm[{name}]"] = g0 + cv.oof
             n_iters.setdefault(name, {})[h] = cv.n_iter
         preds["ensemble[lgbm+gru]"] = 0.5 * (preds["lgbm[full]"] + preds["gru_seq"])
@@ -219,7 +267,8 @@ def run_dev() -> dict:
         q = {}
         for side, a in (("lo", ALPHA / 2), ("hi", 1 - ALPHA / 2)):
             cv = lgbm.cross_validate(d[feats_full], d[f"dy_{h}"].to_numpy(), d["patient_id"].to_numpy(),
-                                     d["fold"].to_numpy(), best_cfg, objective="quantile", alpha=a)
+                                     d["fold"].to_numpy(), best_cfg, objective="quantile", alpha=a,
+                                     extra=ex(feats_full, f"dy_{h}"))
             q[side] = g0 + cv.oof
             n_iters.setdefault(f"q_{side}", {})[h] = cv.n_iter
         scores = np.maximum(q["lo"] - y, y - q["hi"])
@@ -268,18 +317,20 @@ def run_dev() -> dict:
     thresholds: dict[str, dict] = {}
     p60 = oof_store[60].set_index(["recording_id", "slot"])
     p30 = oof_store[30].set_index(["recording_id", "slot"])
+    oof_p: dict[str, pd.Series] = {}
     for kind in EVENT_KINDS:
         m = np.isfinite(data[f"ev_{kind}"].to_numpy())
         d = data[m].reset_index(drop=True)
         y = d[f"ev_{kind}"].to_numpy()
         _log(f"  CV classifier {kind}: n={len(d)}, prevalence={y.mean():.3f}")
         cv = lgbm.cross_validate(d[feats_full], y, d["patient_id"].to_numpy(), d["fold"].to_numpy(),
-                                 best_cfg, objective="binary")
+                                 best_cfg, objective="binary", extra=ex(feats_full, f"ev_{kind}"))
         classifiers_iter[kind] = cv.n_iter
         iso = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(cv.oof, y)
         xs = np.unique(np.quantile(cv.oof, np.linspace(0, 1, 201)))
         calibrators[kind] = Isotonic(x=xs.tolist(), y=iso.predict(xs).tolist())
         scores = {"classifier": calibrators[kind](cv.oof)}
+        oof_p[kind] = pd.Series(scores["classifier"], index=pd.MultiIndex.from_arrays([d["recording_id"], d["slot"]]))
         scores.update(_rule_scores(d, kp, kind))
         key = list(zip(d["recording_id"], d["slot"]))
         f60 = p60.reindex(key)["lgbm[full]"].to_numpy()
@@ -300,18 +351,25 @@ def run_dev() -> dict:
     results["events_dev_cv"] = events
     results["thresholds"] = thresholds
 
+    _log("Choosing the consolidated alert policy on dev OOF probabilities")
+    policy_records = _policy_records(data, glucose_by_rec, {k: oof_p[k] for k in A.ALERT_KINDS})
+    policy_thr, policy_res = A.choose_thresholds(policy_records)
+    results["alert_policy_dev"] = policy_res
+
     # ---- final fit on all dev patients -------------------------------
     _log("Fitting final models on all dev patients")
     point, q_lo, q_hi = {}, {}, {}
     for h in HORIZONS_MIN:
         d = data[rows[h]]
-        point[h] = lgbm.fit(d[feats_full], d[f"dy_{h}"].to_numpy(), best_cfg, n_iters["full"][h])
-        q_lo[h] = lgbm.fit(d[feats_full], d[f"dy_{h}"].to_numpy(), best_cfg, n_iters["q_lo"][h], "quantile", ALPHA / 2)
-        q_hi[h] = lgbm.fit(d[feats_full], d[f"dy_{h}"].to_numpy(), best_cfg, n_iters["q_hi"][h], "quantile", 1 - ALPHA / 2)
+        e = ex(feats_full, f"dy_{h}")[:2]
+        point[h] = lgbm.fit(d[feats_full], d[f"dy_{h}"].to_numpy(), best_cfg, n_iters["full"][h], extra=e)
+        q_lo[h] = lgbm.fit(d[feats_full], d[f"dy_{h}"].to_numpy(), best_cfg, n_iters["q_lo"][h], "quantile", ALPHA / 2, extra=e)
+        q_hi[h] = lgbm.fit(d[feats_full], d[f"dy_{h}"].to_numpy(), best_cfg, n_iters["q_hi"][h], "quantile", 1 - ALPHA / 2, extra=e)
     classifiers = {}
     for kind in EVENT_KINDS:
         d = data[np.isfinite(data[f"ev_{kind}"].to_numpy())]
-        classifiers[kind] = lgbm.fit(d[feats_full], d[f"ev_{kind}"].to_numpy(), best_cfg, classifiers_iter[kind], "binary")
+        classifiers[kind] = lgbm.fit(d[feats_full], d[f"ev_{kind}"].to_numpy(), best_cfg, classifiers_iter[kind], "binary",
+                                     extra=ex(feats_full, f"ev_{kind}")[:2])
     # Ablation models are refit too so the test stage can score the ladder.
     ladder = {}
     for name, feats in FEATURE_SETS.items():
@@ -319,7 +377,8 @@ def run_dev() -> dict:
             continue
         for h in HORIZONS_MIN:
             d = data[rows[h]]
-            ladder[(name, h)] = lgbm.fit(d[feats], d[f"dy_{h}"].to_numpy(), best_cfg, n_iters[name][h])
+            ladder[(name, h)] = lgbm.fit(d[feats], d[f"dy_{h}"].to_numpy(), best_cfg, n_iters[name][h],
+                                         extra=ex(feats, f"dy_{h}")[:2])
     _log("Fitting final GRU")
     gru_model, gru_norm = gru.fit_final(dev_series, d_any)
     ridge = {}
@@ -343,6 +402,10 @@ def run_dev() -> dict:
             "classifier_n_iter": classifiers_iter,
             "data_manifest": json.loads((DATA_PROCESSED / "manifest.json").read_text()),
             "seed": SEED,
+            "version": MODEL_VERSION,
+            "augmentation": {"noise_sd_choices": list(TRAIN_NOISE_SD)},
+            "alert_policy": {"kinds": list(A.ALERT_KINDS), "thresholds": policy_thr,
+                             "cooldown_min": 60, "false_alert_budget_per_day": A.TOTAL_FALSE_ALERT_BUDGET},
         },
     )
     bundle.save(MODELS_DIR)
@@ -393,6 +456,14 @@ def _perturb(series, kind: str, rng: np.random.Generator):
     elif kind.startswith("noise"):
         sd = float(kind[5:])
         g[finite] = np.clip(g[finite] + rng.normal(0, sd, len(finite)), 40, 500)
+    elif kind.startswith("arnoise"):
+        # Autocorrelated sensor error, AR(1) with rho 0.7 and the given marginal SD,
+        # closer to published CGM error models than independent noise.
+        sd, rho = float(kind[7:]), 0.7
+        e = np.zeros(len(finite))
+        for i in range(len(finite)):
+            e[i] = (rho * e[i - 1] if i else 0.0) + rng.normal(0, sd * np.sqrt(1 - rho ** 2))
+        g[finite] = np.clip(g[finite] + e, 40, 500)
     return s
 
 
@@ -495,6 +566,15 @@ def run_test(reason: str | None = None) -> dict:
         events[kind] = res
     results["events_test"] = events
 
+    pol = bundle.meta.get("alert_policy")
+    if pol:
+        g0 = data["g0"].to_numpy()
+        risk_mask = {"hypo": g0 >= 70, "hyper2": g0 <= 250}
+        key = pd.MultiIndex.from_arrays([data["recording_id"], data["slot"]])
+        probs = {k: pd.Series(np.where(risk_mask[k], data[f"p_{k}"], np.nan), index=key) for k in A.ALERT_KINDS}
+        results["alert_policy_test"] = A.evaluate_policy(_policy_records(data, glucose_by_rec, probs), pol["thresholds"])
+        _log(f"Alert policy on test: {results['alert_policy_test']}")
+
     static = recs.set_index("recording_id")
     data["rx_insulin_grp"] = data["recording_id"].map(static["rx_insulin"]).map({1: "insulin", 0: "no_insulin"})
     data["hba1c_grp"] = np.where(data["recording_id"].map(static["hba1c_pct"]) >= 8.0, "hba1c_ge_8", "hba1c_lt_8")
@@ -518,7 +598,7 @@ def run_test(reason: str | None = None) -> dict:
     rng = np.random.default_rng(SEED)
     robust = {}
     base_keys = set(zip(data["recording_id"], data["slot"]))
-    for kind in ("drop10", "drop30", "gap60_daily", "noise10", "noise20"):
+    for kind in ("drop10", "drop30", "gap60_daily", "noise5", "noise10", "noise20", "arnoise10"):
         parts = []
         for s in series.values():
             ps = _perturb(s, kind, rng)
@@ -561,6 +641,7 @@ def run_test(reason: str | None = None) -> dict:
         "test_recordings": int(data["recording_id"].nunique()),
         "issuable_rows": int(len(data)),
         "model_trained_at": bundle.meta.get("trained_at"),
+        "model_version": bundle.meta.get("version", "1"),
         "reason": reason,
     }
     (RESULTS_DIR / "test.json").write_text(json.dumps(results, indent=2, default=float))
