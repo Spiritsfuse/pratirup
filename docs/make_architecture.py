@@ -44,7 +44,7 @@ def arrow(x1, y1, x2, y2, label=None, color=MUTED, rad=0.0, lx=0, ly=0):
                 bbox=dict(fc="white", ec="none", pad=0.6))
 
 
-ax.text(1, 100, "Pratirup · system architecture (as built)", fontsize=16, fontweight="bold", color=INK, va="top")
+ax.text(1, 100, "Pratirup · system architecture (as built, v2)", fontsize=16, fontweight="bold", color=INK, va="top")
 ax.text(1, 96.2, "Glucose digital twin for type 2 diabetes care teams · research prototype · Team Aflatoon, Scaler School of Technology",
         fontsize=9.5, color=MUTED, va="top")
 
@@ -77,18 +77,18 @@ box(40, 36, 30, 26, "Causal features",
 
 # --- Twin engine
 box(76, 30, 47, 60, "Digital twin engine (per patient)", [], MODEL, MODEL_E, "pratirup/twin/engine.py")
-box(78.5, 72.8, 42, 13.2, "Patient state",
+box(78.5, 72.3, 42, 12.6, "Patient state",
     ["clinical context · Kalman level, rate, uncertainty", "event context · personal profile · model trust",
      "data quality"], "white", MODEL_E, fs=7.6)
 box(78.5, 57.5, 20.5, 13, "Forecaster",
-    ["LightGBM", "+30 / +60 / +120 min", "conformal 80% interval"], "white", MODEL_E, fs=7.2)
-box(100, 57.5, 20.5, 13, "Event risk",
-    ["calibrated P(>180, >250,", "<70 within 60 min)", "alert: dev-set threshold"], "white", MODEL_E, fs=7.2)
+    ["LightGBM, noise-augmented", "+30 / +60 / +120 min", "conformal 80% interval"], "white", MODEL_E, fs=7.2)
+box(100, 57.5, 20.5, 13, "Risk + alert policy",
+    ["calibrated risk of <70,", ">180 and >250 in 60 min;", "alerts: <70, >250, cooldown"], "white", MODEL_E, fs=7.2)
 box(78.5, 43, 20.5, 12, "Self-correction",
     ["EWM of this patient's", "resolved forecast errors"], "white", MODEL_E, fs=7.2)
 box(100, 43, 20.5, 12, "Abstention",
     ["< 8 readings in 3 h, or", "last reading > 30 min old"], "white", MODEL_E, fs=7.2)
-box(78.5, 31.5, 42, 9.5, "Forecast ledger",
+box(78.5, 32.6, 42, 8.4, "Forecast ledger",
     ["every forecast stored, scored at its target time"], "white", MODEL_E, fs=7.6)
 arrow(99.5, 73.5, 89, 70.9, color=MODEL_E)
 arrow(99.5, 73.5, 110, 70.9, color=MODEL_E)
@@ -106,16 +106,16 @@ box(76, 8, 46, 17, "What-if (model sensitivity)",
 box(128, 56, 36, 34, "Persistence and API",
     ["SQLite: recording, observation, event,", "twin_state, forecast (ledger)",
      "", "FastAPI: /worklist, /patients/{id}/twin,", "/ledger, /sensitivity, /live/*,",
-     "/evaluation, /meta", "", "Docker: model + open data +", "results; no secrets; offline"],
+     "/agp, /evaluation, /meta", "", "Docker (non-root, read-only) +", "CI: tests, audits, Trivy scan"],
     STORE, STORE_E, "pratirup/api/")
 box(128, 22, 36, 30, "Clinician web app",
     ["React + TypeScript", "Worklist (priority by consensus", "targets + predicted risk) -> Patient twin",
-     "(CGM, forecast band, past forecasts", "vs reality, drivers) -> Ledger ->", "What-if -> FHIR record;",
+     "(CGM, forecast band, past forecasts", "vs reality, drivers) -> Ledger ->", "AGP -> What-if -> FHIR record;",
      "Live stream; Evidence (all metrics", "read from results/benchmark.json)"],
     CLIN, CLIN_E, "web/")
 box(128, 3, 36, 16, "Evaluation pipeline (offline)",
-    ["5-fold patient-grouped CV on 80 dev patients;", "20 test patients scored once (lock file);",
-     "baselines, ablations, GRU, robustness;", "CGMacros external test"], STORE, STORE_E, None, fs=7.6)
+    ["5-fold patient-grouped CV on 80 dev patients;", "20 test patients behind a lock (v1, v2 logged);",
+     "baselines, GRU, Chronos-Bolt, robustness;", "CGMacros external test"], STORE, STORE_E, None, fs=7.6)
 
 # --- arrows between columns
 arrow(34, 78, 40, 78)
