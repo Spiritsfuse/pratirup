@@ -1,20 +1,20 @@
 {
   "hyper": {
-    "classifier": 0.16482246022720415,
+    "classifier": 0.1549326783193837,
     "trend_rule": 187.1999999999999,
     "kalman_rule": 169.35725470454332,
-    "forecast_rule": 166.8991101901186
+    "forecast_rule": 166.34003094633144
   },
   "hyper2": {
-    "classifier": 0.04543483745836067,
+    "classifier": 0.04274784158347858,
     "trend_rule": 241.2,
     "kalman_rule": 216.34078940744354,
-    "forecast_rule": 209.54806735381266
+    "forecast_rule": 207.77294735323386
   },
   "hypo": {
-    "classifier": 0.04302886085493915,
+    "classifier": 0.034123222748815164,
     "trend_rule": -59.400000000000006,
     "kalman_rule": -80.34004897610576,
-    "forecast_rule": -86.87043698303725
+    "forecast_rule": -87.4778631491317
   }
 }
