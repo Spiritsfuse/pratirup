@@ -1,0 +1,124 @@
+{
+  "train_noise_sd": [
+    5.0,
+    10.0,
+    15.0
+  ],
+  "eval_noise_sd": [
+    0.0,
+    5.0,
+    10.0,
+    20.0
+  ],
+  "results": {
+    "30": {
+      "v1_clean_training|sd=0": {
+        "mae": 8.761329253138053,
+        "mae_persistence": 11.952158296871938
+      },
+      "v1_clean_training|sd=5": {
+        "mae": 13.310771500783087,
+        "mae_persistence": 12.860617440988953
+      },
+      "v1_clean_training|sd=10": {
+        "mae": 19.811797116804826,
+        "mae_persistence": 14.877401583700085
+      },
+      "v1_clean_training|sd=20": {
+        "mae": 29.853650477881683,
+        "mae_persistence": 20.53432580700796
+      },
+      "v2_noise_augmented|sd=0": {
+        "mae": 8.95059616642482,
+        "mae_persistence": 11.952158296871938
+      },
+      "v2_noise_augmented|sd=5": {
+        "mae": 11.129668572058884,
+        "mae_persistence": 12.860617440988953
+      },
+      "v2_noise_augmented|sd=10": {
+        "mae": 13.567628125845353,
+        "mae_persistence": 14.877401583700085
+      },
+      "v2_noise_augmented|sd=20": {
+        "mae": 20.439627114816876,
+        "mae_persistence": 20.53432580700796
+      }
+    },
+    "60": {
+      "v1_clean_training|sd=0": {
+        "mae": 15.186439576619767,
+        "mae_persistence": 20.199291143657916
+      },
+      "v1_clean_training|sd=5": {
+        "mae": 17.72004652279865,
+        "mae_persistence": 20.787566737370437
+      },
+      "v1_clean_training|sd=10": {
+        "mae": 21.91065069045056,
+        "mae_persistence": 22.2254670312914
+      },
+      "v1_clean_training|sd=20": {
+        "mae": 29.503905021426355,
+        "mae_persistence": 26.659421006933126
+      },
+      "v2_noise_augmented|sd=0": {
+        "mae": 15.383191213796485,
+        "mae_persistence": 20.199291143657916
+      },
+      "v2_noise_augmented|sd=5": {
+        "mae": 16.59943588036844,
+        "mae_persistence": 20.787566737370437
+      },
+      "v2_noise_augmented|sd=10": {
+        "mae": 18.486182155142053,
+        "mae_persistence": 22.2254670312914
+      },
+      "v2_noise_augmented|sd=20": {
+        "mae": 23.889875983432148,
+        "mae_persistence": 26.659421006933126
+      }
+    },
+    "120": {
+      "v1_clean_training|sd=0": {
+        "mae": 22.283039799891817,
+        "mae_persistence": 31.484717036907277
+      },
+      "v1_clean_training|sd=5": {
+        "mae": 23.142283462225286,
+        "mae_persistence": 31.87919477614344
+      },
+      "v1_clean_training|sd=10": {
+        "mae": 24.655383453533904,
+        "mae_persistence": 32.87807140461781
+      },
+      "v1_clean_training|sd=20": {
+        "mae": 28.28825832170279,
+        "mae_persistence": 36.143168660231886
+      },
+      "v2_noise_augmented|sd=0": {
+        "mae": 22.466882529166142,
+        "mae_persistence": 31.484717036907277
+      },
+      "v2_noise_augmented|sd=5": {
+        "mae": 22.974848748288398,
+        "mae_persistence": 31.87919477614344
+      },
+      "v2_noise_augmented|sd=10": {
+        "mae": 24.058969724520054,
+        "mae_persistence": 32.87807140461781
+      },
+      "v2_noise_augmented|sd=20": {
+        "mae": 27.369682461183075,
+        "mae_persistence": 36.143168660231886
+      }
+    }
+  },
+  "decision": {
+    "clean_60_relative_change": 0.01295574490545004,
+    "noisy10_30_relative_gain": 0.31517428500532263,
+    "noisy10_30_beats_persistence": true,
+    "adopt_v2": true,
+    "rule": "adopt if clean 60-min MAE worsens <= 2% and noisy(SD 10) 30-min MAE improves >= 20% and beats persistence"
+  }
+}

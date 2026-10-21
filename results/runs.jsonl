@@ -1,1 +1,2 @@
 {"stage": "test", "at": "2026-10-21T00:47:48", "commit": "0b5c075", "reason": null}
+{"stage": "test", "at": "2026-10-21T17:08:08", "commit": "28cbcc6", "reason": "v2: noise-augmented training + roughness feature and a consolidated alert policy, both selected on development patients only (results/experiments/noise_robustness_dev.json, results/dev_cv.json). v1 test results are archived unchanged in results/v1/."}
