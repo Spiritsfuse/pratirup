@@ -150,16 +150,27 @@ def _range_stats(rid: str, t: int, minutes: int = 1440) -> dict:
     }
 
 
+def _thresholds() -> dict:
+    """Per-kind thresholds: the alert policy's for alerting kinds (<70, >250),
+    the per-event classifier's for the ranking-only kind (>180)."""
+    b = store().bundle
+    pol = (b.meta.get("alert_policy") or {}).get("thresholds", {})
+    return {k: float(pol.get(k, b.thresholds[k])) for k in EVENT_KINDS}
+
+
 def _risk(state) -> dict:
     b = store().bundle
+    thr = _thresholds()
+    alerting = set(((b.meta.get("alert_policy") or {}).get("thresholds") or {}).keys())
     out = {}
     for kind in EVENT_KINDS:
         p = _f(state[f"p_{kind}"]) if state is not None else None
         out[kind] = {
             "p": p,
-            "threshold": b.thresholds[kind],
+            "threshold": thr[kind],
+            "alerting": kind in alerting,
             "at_risk": p is not None,
-            "above_threshold": p is not None and p >= b.thresholds[kind],
+            "above_threshold": p is not None and p >= thr[kind],
             "label": EVENT_LABEL[kind],
         }
     return out
@@ -285,7 +296,7 @@ def meta():
                   "step_min": STEP_MIN, "default": default_clock()},
         "thresholds_mgdl": {"hypo_l2": HYPO_L2, "hypo": HYPO, "hyper": HYPER, "hyper_l2": HYPER_L2},
         "horizons_min": list(HORIZONS_MIN),
-        "alert_thresholds": b.thresholds,
+        "alert_thresholds": _thresholds(),
         "alert_policy": b.meta.get("alert_policy"),
         "model_version": b.meta.get("version", "1"),
         "model": {k: b.meta.get(k) for k in ("trained_at", "git_commit", "train_patients", "seed")},

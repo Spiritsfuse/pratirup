@@ -186,7 +186,8 @@ def _summary(test: dict | None) -> dict | None:
         "noise10_mae_30": test["robustness_test"]["noise10"]["mae_30_lgbm"],
         "noise10_mae_30_persistence": test["robustness_test"]["noise10"]["mae_30_persistence"],
         "alerts_per_day": pol["alerts_per_day"] if pol else burden,
-        "false_alerts_per_day": pol["false_alerts_per_day"] if pol else None,
+        "false_alerts_per_day": pol["false_alerts_per_day"] if pol else
+            sum(ev[k]["classifier"]["event"]["false_alerts_per_day"] for k in ev),
         "alert_design": "consolidated (<70 and >250, shared cooldown)" if pol else "three independent streams",
     }
 
@@ -201,7 +202,8 @@ def _versions(test: dict | None) -> dict:
         "latest": current,
         "changes": [
             "v2: every LightGBM model also trains on noise-augmented copies of the development recordings, with a "
-            "signal-roughness feature (selected on development data only: results/experiments/noise_robustness_dev.json).",
+            "signal-roughness feature; clean-data MAE rises 0.8-2.4% in exchange for robustness to sensor noise "
+            "(selected on development data only: results/experiments/noise_robustness_dev.json).",
             "v2: one consolidated alert stream per patient for predicted <70 and >250 mg/dL with a shared 60-min "
             "cooldown, thresholds set on development data for <= 1 false alert per patient-day; '>180' became a "
             "ranking signal instead of an interruptive alert.",

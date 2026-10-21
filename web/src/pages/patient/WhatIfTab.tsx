@@ -8,7 +8,11 @@ import { Disclosure, EmptyState, ProvChip, cx } from '../../components/ui'
 import { RISK_ORDER, clockLabel, prob, round, signed } from '../../lib/format'
 
 const NOT_CAUSAL = 'Model sensitivity — associational, not causal'
-const RISK_TITLE: Record<RiskKind, string> = { hypo: 'Below 70 mg/dL', hyper: 'Above 180 mg/dL', hyper2: 'Above 250 mg/dL' }
+const RISK_TITLE: Record<RiskKind, string> = {
+  hypo: 'Below 70 mg/dL',
+  hyper: 'Above 180 mg/dL (ranking signal, no alert)',
+  hyper2: 'Above 250 mg/dL',
+}
 
 function Slider({
   id,

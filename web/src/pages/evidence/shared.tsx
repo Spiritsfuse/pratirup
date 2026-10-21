@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Evaluation, ModelDef } from '../../api/types'
+import type { Evaluation, FoundationBlock, FoundationHorizon, ModelDef } from '../../api/types'
 import { ProvChip, cx } from '../../components/ui'
 
 export type Basis = 'test' | 'dev_cv'
@@ -28,6 +28,19 @@ export function sortedHorizons(block: Record<string, unknown>): string[] {
 /** Mirror of the key mangling used by the bootstrap output: "lgbm[cgm+events]" -> "lgbm_cgm_events". */
 export function safeKey(k: string): string {
   return k.replace(/\[/g, '_').replace(/\]/g, '').replace(/\+/g, '_')
+}
+
+/** The pretrained foundation model is scored on MAE and RMSE only; it is not one of the app's own models. */
+export const FOUNDATION_KEY = 'foundation[chronos-bolt-small]'
+export const FOUNDATION_LABEL = 'Chronos-Bolt small (zero-shot foundation model)'
+
+export function foundationBlock(ev: Evaluation, basis: Basis): FoundationBlock | undefined {
+  const f = ev.foundation_model
+  return basis === 'test' ? f?.test : f?.dev
+}
+export function foundationAt(ev: Evaluation, basis: Basis, h: string): FoundationHorizon | null {
+  const v = foundationBlock(ev, basis)?.[h]
+  return v != null && typeof v === 'object' ? v : null
 }
 
 export const SOURCE_GROUP: Record<string, { label: string; color: string }> = {

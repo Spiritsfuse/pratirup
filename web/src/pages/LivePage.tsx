@@ -156,7 +156,7 @@ export default function LivePage() {
               </p>
             </div>
             <Stat label="Readings ingested" value={active.ingested_readings.toLocaleString()} sub="CGM readings sent to the twin" />
-            <Stat label="Alerts raised" value={active.alerts.toLocaleString()} sub="Threshold crossings flagged by the twin" />
+            <Stat label="Alerts raised" value={active.alerts.toLocaleString()} sub="Predicted below 70 or above 250 mg/dL within 60 min" />
             <div className="card p-3.5">
               <p className="section-title">Patient page</p>
               <p className="mt-1.5 text-sm">

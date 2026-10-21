@@ -13,9 +13,9 @@ import {
   YAxis,
   ZAxis,
 } from 'recharts'
-import type { EventKind, RiskKind, Twin, TwinEvent } from '../../api/types'
+import type { AlertKind, EventKind, Twin, TwinEvent } from '../../api/types'
 import { ChartBox, useChartColors, type ChartColors } from '../ChartBox'
-import { clockLabel, eventSentence, hhmm, round } from '../../lib/format'
+import { ALERT_TEXT, clockLabel, eventSentence, hhmm, round } from '../../lib/format'
 
 // ---------------------------------------------------------------- data model
 
@@ -262,12 +262,6 @@ function EventShape({ cx = 0, cy = 0, payload, c }: ShapeProps & { c: ChartColor
   }
 }
 
-const ALERT_TEXT: Record<RiskKind, string> = {
-  hypo: 'Alert: glucose likely to fall below 70 mg/dL within 60 min',
-  hyper: 'Alert: glucose likely to exceed 180 mg/dL within 60 min',
-  hyper2: 'Alert: glucose likely to exceed 250 mg/dL within 60 min',
-}
-
 const LANE_NAME: Record<number, string> = { 3: 'Alerts', 2: 'Meals', 1: 'Insulin', 0: 'Oral/pump' }
 
 function eventLane(k: EventKind): number {
@@ -278,13 +272,13 @@ function eventLane(k: EventKind): number {
 
 function buildStrip(twin: Twin, c: ChartColors): StripPoint[] {
   const out: StripPoint[] = []
-  const alertColor: Record<RiskKind, string> = { hypo: c.low, hyper: c.high, hyper2: c.vhigh }
+  const alertColor: Record<AlertKind, string> = { hypo: c.low, hyper2: c.vhigh }
   for (const e of twin.events as TwinEvent[]) {
     out.push({ t: e.t, lane: eventLane(e.kind), kind: e.kind, text: eventSentence(e) })
   }
   for (const a of twin.recent_alerts) {
     a.kinds.forEach((k, i) =>
-      out.push({ t: a.t, lane: 3, kind: 'alert', text: ALERT_TEXT[k], color: alertColor[k], off: i * 9 }),
+      out.push({ t: a.t, lane: 3, kind: 'alert', text: `Alert: ${ALERT_TEXT[k] ?? k}`, color: alertColor[k] ?? c.high, off: i * 9 }),
     )
   }
   return out
@@ -626,9 +620,15 @@ export function EventKey() {
       </li>
       <li className={item}>
         <svg width="14" height="12" aria-hidden="true">
-          <path d="M7 0 L13 6 L7 12 L1 6 Z" fill="rgb(var(--high))" />
+          <path d="M7 0 L13 6 L7 12 L1 6 Z" fill="rgb(var(--low))" />
         </svg>
-        Alert (colour by threshold)
+        Alert: predicted below 70
+      </li>
+      <li className={item}>
+        <svg width="14" height="12" aria-hidden="true">
+          <path d="M7 0 L13 6 L7 12 L1 6 Z" fill="rgb(var(--vhigh))" />
+        </svg>
+        Alert: predicted above 250
       </li>
     </ul>
   )

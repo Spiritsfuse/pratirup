@@ -1,4 +1,5 @@
 import type {
+  Agp,
   Evaluation,
   Ledger,
   LiveSession,
@@ -73,6 +74,8 @@ export const api = {
     ),
   ledger: (rid: string, t: number | null, signal?: AbortSignal) =>
     request<Ledger>(`/patients/${encodeURIComponent(rid)}/ledger?horizon=60${t == null ? '' : `&t=${t}`}`, undefined, signal),
+  agp: (rid: string, t: number | null, signal?: AbortSignal) =>
+    request<Agp>(`/patients/${encodeURIComponent(rid)}/agp${t == null ? '' : `?t=${t}`}`, undefined, signal),
   sensitivity: (rid: string, t: number, changes: SensitivityChange[]) =>
     request<Sensitivity>(`/patients/${encodeURIComponent(rid)}/sensitivity`, {
       method: 'POST',

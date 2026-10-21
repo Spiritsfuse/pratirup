@@ -361,7 +361,7 @@ pres.addSection({ title: "Evidence" });
     { x: 7.5, y: 1.45, w: 5.2, colW: [2.8, 1.2, 1.2], border: { type: "solid", pt: 0.75, color: C.line }, rowH: 0.48 });
   text(s, "How we did it without cheating: both changes were chosen on development patients with a rule written before the experiment. The test set was re-scored once, the reason is logged, and v1 results are kept unchanged.",
     { x: 7.5, y: 4.3, w: 5.2, h: 2.2, fontSize: 14 });
-  s.addNotes("The v1 test exposed two weaknesses: sensitivity to sensor noise and an unusable alert load. We fixed both using development data only, then re-scored the test set once and logged why. Clean accuracy dropped about 1 percent; noisy accuracy improved about 30 percent.");
+  s.addNotes("The v1 test exposed two weaknesses: sensitivity to sensor noise and an unusable alert load. We fixed both using development data only, then re-scored the test set once and logged why. Clean accuracy dropped 1 to 2.4 percent depending on horizon; noisy accuracy improved about 30 percent.");
 }
 
 // ---------------------------------------------------------------- 13. External

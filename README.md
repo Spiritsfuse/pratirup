@@ -246,7 +246,7 @@ All numbers below are generated from [`results/benchmark.json`](results/benchmar
 | Alerts per patient-day | 7.9 | **1.9** |
 | Alert design | three independent streams | consolidated (<70 and >250, shared cooldown) |
 
-- v2: every LightGBM model also trains on noise-augmented copies of the development recordings, with a signal-roughness feature (selected on development data only: results/experiments/noise_robustness_dev.json).
+- v2: every LightGBM model also trains on noise-augmented copies of the development recordings, with a signal-roughness feature; clean-data MAE rises 0.8-2.4% in exchange for robustness to sensor noise (selected on development data only: results/experiments/noise_robustness_dev.json).
 - v2: one consolidated alert stream per patient for predicted <70 and >250 mg/dL with a shared 60-min cooldown, thresholds set on development data for <= 1 false alert per patient-day; '>180' became a ranking signal instead of an interruptive alert.
 
 #### Forecast accuracy (held-out patients, mg/dL)
@@ -345,7 +345,7 @@ Wearable experiment (inside CGMacros, 5-fold participant-grouped CV): adding Fit
   - online self-correction;
   - Fitbit heart rate and activity.
 - **Trade-offs**
-  - v2 gives up about 1–2% of clean accuracy for robustness to noise.
+  - v2 gives up 0.8–2.4% of clean accuracy (MAE) for robustness to noise.
   - The consolidated alert policy gives up some sensitivity to bring alerts from about 8 to about 2 per patient-day.
 - **Not supported**
   - validation in Indian patients;
@@ -378,6 +378,7 @@ Wearable experiment (inside CGMacros, 5-fold participant-grouped CV): adding Fit
 
 ![Worklist](docs/screenshots/worklist.png)
 ![Patient twin](docs/screenshots/twin.png)
+![AGP: the standard ambulatory glucose profile](docs/screenshots/agp.png)
 
 | Screen | What it shows |
 |---|---|

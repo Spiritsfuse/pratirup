@@ -2,6 +2,7 @@ import { CartesianGrid, ReferenceLine, Scatter, ScatterChart, Tooltip, XAxis, YA
 import type { CalibrationBin, EventsBlock, Evaluation } from '../../api/types'
 import { ChartBox, useChartColors } from '../../components/ChartBox'
 import { Stat, cx } from '../../components/ui'
+import { AlertPolicy } from './AlertPolicy'
 import { type Basis, Section, Sub, f1, pc } from './shared'
 
 const KINDS: { key: string; title: string; short: string }[] = [
@@ -16,7 +17,7 @@ function lead(n: number | null | undefined, iqr: number[] | null | undefined): s
   return iqr && iqr.length === 2 ? `${base} (IQR ${iqr[0].toFixed(0)}–${iqr[1].toFixed(0)})` : base
 }
 
-export function Alerts({ ev, basis }: { ev: Evaluation; basis: Basis }) {
+export function Alerts({ ev, basis, letter }: { ev: Evaluation; basis: Basis; letter: string }) {
   const block: EventsBlock = basis === 'test' && ev.events.test ? ev.events.test : ev.events.dev_cv
   const scorers = ev.event_scorers
   // alert burden: from the test results when present, otherwise computed from the classifier rows being shown
@@ -31,15 +32,27 @@ export function Alerts({ ev, basis }: { ev: Evaluation; basis: Basis }) {
   return (
     <Section
       id="alerts"
-      letter="e"
+      letter={letter}
       title="Alerts: do they fire early enough, and how often are they wrong?"
       lead="An event is glucose staying beyond a consensus threshold for at least 15 minutes. Sensitivity is the share of events the twin warned about. A warning only helps if it comes early, so we also report the share caught with at least 30 minutes' notice. Positive predictive value (PPV) is the share of alerts that were followed by a real event."
       basis={basis}
       basisN={basis === 'test' ? ev.meta.split.test_patients : ev.meta.split.dev_patients}
     >
+      <AlertPolicy ev={ev} basis={basis} />
+
+      <div className="border-t border-line pt-5">
+        <Sub>Per-event classifiers (each tuned alone)</Sub>
+        <p className="max-w-3xl text-sm text-muted">
+          Underneath the alert policy sit three classifiers, one per event, each with its own threshold chosen on development data.
+          These tables describe the classifiers themselves, and how a simpler rule would do. The app alerts only through the policy
+          above, which combines the below-70 and above-250 classifiers into one stream; the above-180 classifier feeds the worklist
+          ranking.
+        </p>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          label="Alert burden, all three types"
+          label="Sum of all three, if each alerted alone"
           value={
             <>
               {f1(burden.total_alerts_per_day, 1)} <span className="text-sm text-muted">/ patient-day</span>

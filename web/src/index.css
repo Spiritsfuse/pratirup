@@ -160,6 +160,8 @@
     @apply text-right;
   }
   .scroll-x {
+    /* positioned so absolutely placed descendants (sr-only text in cells) are clipped here, not by the page */
+    position: relative;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }

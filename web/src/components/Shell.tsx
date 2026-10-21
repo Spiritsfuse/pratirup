@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useApp, isClockRoute } from '../state/app'
 import { useTheme } from '../state/theme'
@@ -12,9 +13,11 @@ import {
   StepForwardIcon,
   SunIcon,
 } from './icons'
-import { Segmented, cx } from './ui'
+import { Segmented, Skeleton, cx } from './ui'
 
 function Wordmark() {
+  const { meta } = useApp()
+  const mv = meta?.model_version
   return (
     <Link to="/" className="flex items-center gap-2 text-ink no-underline hover:no-underline" aria-label="Pratirup home">
       <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
@@ -38,6 +41,11 @@ function Wordmark() {
       </svg>
       <span className="text-lg font-semibold tracking-tight">Pratirup</span>
       <span className="chip hidden !text-[11px] xs:inline-flex">research prototype</span>
+      {mv && (
+        <span className="chip !text-[11px]" title="Version of the forecasting model and alert policy that is running">
+          model v{mv}
+        </span>
+      )}
     </Link>
   )
 }
@@ -212,6 +220,16 @@ function Footer() {
   )
 }
 
+function RouteFallback() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading page">
+      <Skeleton className="h-8 w-56" />
+      <Skeleton className="h-5 w-full max-w-xl" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  )
+}
+
 export function Shell() {
   const { pathname } = useLocation()
   const showClock = isClockRoute(pathname)
@@ -239,7 +257,9 @@ export function Shell() {
       {showClock && <ClockBar />}
       <Banner />
       <main id="main" className="mx-auto w-full max-w-page flex-1 px-4 py-5 md:px-6">
-        <Outlet />
+        <Suspense fallback={<RouteFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
       <Footer />
     </div>

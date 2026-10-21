@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { Driver, RiskKind, Twin } from '../../api/types'
-import { RISK_FILL, RISK_NOW, riskPos } from '../clinical'
-import { TrendIcon } from '../icons'
+import { RISK_FILL, RISK_NOW, riskGate, riskPos } from '../clinical'
+import { BellIcon, TrendIcon } from '../icons'
+import { useApp } from '../../state/app'
 import { ProvChip, Segmented, cx } from '../ui'
 import { RISK_ORDER, SOURCE_LABEL, TREND_TEXT, pct, prob, round, signed, sourceKey } from '../../lib/format'
 
@@ -14,6 +15,7 @@ const RISK_TITLE: Record<RiskKind, string> = {
 // ---------------------------------------------------------------- risk
 
 export function RiskCard({ twin }: { twin: Twin }) {
+  const { meta } = useApp()
   const fc = twin.forecast
   return (
     <section className="card p-4" aria-labelledby="risk-h">
@@ -32,7 +34,9 @@ export function RiskCard({ twin }: { twin: Twin }) {
         <ul className="space-y-4">
           {RISK_ORDER.map((k) => {
             const r = fc.risk[k]
+            const g = riskGate(k, r, meta)
             const now = !r.at_risk && r.p == null
+            const fired = fc.alert?.kind === k
             return (
               <li key={k}>
                 <div className="flex items-baseline justify-between gap-2">
@@ -40,9 +44,19 @@ export function RiskCard({ twin }: { twin: Twin }) {
                   {now ? (
                     <span className="text-sm italic text-muted">now</span>
                   ) : (
-                    <span className={cx('num text-xl font-medium', r.above_threshold ? 'text-ink' : 'text-muted')}>{prob(r.p)}</span>
+                    <span className={cx('num text-xl font-medium', g.above ? 'text-ink' : 'text-muted')}>{prob(r.p)}</span>
                   )}
                 </div>
+                <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                  {g.alerting ? (
+                    <>
+                      <BellIcon width={12} height={12} className={k === 'hypo' ? 'text-low' : 'text-vhigh'} />
+                      interruptive alert
+                    </>
+                  ) : (
+                    'ranking signal · no alert'
+                  )}
+                </p>
                 {now ? (
                   <p className="mt-1 text-xs text-muted">{RISK_NOW[k]}, so a forecast of crossing it does not apply.</p>
                 ) : (
@@ -50,29 +64,40 @@ export function RiskCard({ twin }: { twin: Twin }) {
                     <div
                       className="relative mt-1.5 h-2 rounded-full bg-line/80"
                       role="img"
-                      aria-label={`${prob(r.p)} probability; alert threshold ${prob(r.threshold)}; ${r.above_threshold ? 'above' : 'below'} threshold`}
+                      aria-label={`${prob(r.p)} probability; ${g.alerting ? 'alert threshold' : 'reference level, no alert'} ${prob(g.threshold)}; ${g.above ? 'above' : 'below'}`}
                     >
                       <span
-                        className={cx('absolute inset-y-0 left-0 rounded-full', r.above_threshold ? RISK_FILL[k] : 'bg-muted/45')}
+                        className={cx('absolute inset-y-0 left-0 rounded-full', g.above ? RISK_FILL[k] : 'bg-muted/45')}
                         style={{ width: `${riskPos(r.p ?? 0)}%` }}
                       />
                       <span
-                        className="absolute -top-[4px] h-[16px] w-[2px] rounded-full bg-ink"
-                        style={{ left: `${riskPos(r.threshold)}%` }}
-                        title={`Alert threshold ${prob(r.threshold)}`}
+                        className={cx('absolute -top-[4px] h-[16px] w-[2px] rounded-full', g.alerting ? 'bg-ink' : 'bg-muted/70')}
+                        style={{ left: `${riskPos(g.threshold)}%` }}
+                        title={g.alerting ? `Alert threshold ${prob(g.threshold)}` : `Reference level ${prob(g.threshold)}. This level does not raise an alert.`}
                       />
                     </div>
-                    <p className="mt-1.5 flex items-center gap-1.5 text-xs">
-                      {r.above_threshold ? (
+                    <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+                      {g.alerting ? (
+                        g.above ? (
+                          <>
+                            <span className={cx('h-2 w-2 rounded-[2px]', RISK_FILL[k])} aria-hidden="true" />
+                            <span className="font-semibold text-ink">Above alert threshold</span>
+                            {fired && <span className="font-semibold text-ink">· alert fired at this reading</span>}
+                          </>
+                        ) : (
+                          <span className="text-muted">Below alert threshold</span>
+                        )
+                      ) : g.above ? (
                         <>
                           <span className={cx('h-2 w-2 rounded-[2px]', RISK_FILL[k])} aria-hidden="true" />
-                          <span className="font-semibold text-ink">Above alert threshold</span>
+                          <span className="font-semibold text-ink">Raised risk</span>
+                          <span className="text-muted">· ranks the patient higher on the worklist</span>
                         </>
                       ) : (
-                        <span className="text-muted">Below alert threshold</span>
+                        <span className="text-muted">Below reference level</span>
                       )}
                       <span className="text-muted">
-                        (<span className="num">{prob(r.threshold)}</span>)
+                        (<span className="num">{prob(g.threshold)}</span>)
                       </span>
                     </p>
                   </>
@@ -83,8 +108,10 @@ export function RiskCard({ twin }: { twin: Twin }) {
         </ul>
       )}
       <p className="mt-4 border-t border-line pt-2.5 text-xs text-muted">
-        Bar length is square-root scaled so small probabilities stay visible. The tick is the alert threshold, chosen on
-        development data.
+        Bar length is square-root scaled so small probabilities stay visible. On the &lt;70 and &gt;250 rows the dark tick is the
+        alert threshold, chosen on development data
+        {meta?.alert_policy ? ` for at most ${meta.alert_policy.false_alert_budget_per_day} false alert per patient-day` : ''}. The
+        &gt;180 row is a ranking signal only: its tick is a reference level and it never raises an alert.
       </p>
     </section>
   )
@@ -138,6 +165,13 @@ export function StateCard({ twin }: { twin: Twin }) {
                 {s.data_quality.readings_last_3h}/{s.data_quality.expected_last_3h}
               </span>
             </Row>
+            {s.data_quality.signal_roughness_mgdl != null && (
+              <Row label="Signal noise (roughness, 3 h)" hint="Roughness of the sensor trace over the last 3 hours: a proxy for sensor noise">
+                <span className="font-semibold">{round(s.data_quality.signal_roughness_mgdl, 1)}</span>{' '}
+                <span className="text-muted">mg/dL</span>
+                <span className="block font-sans text-xs text-muted">v2 is trained to stay accurate when this is high</span>
+              </Row>
+            )}
           </dl>
 
           <h4 className="section-title mb-1 mt-4">Personal correction</h4>
