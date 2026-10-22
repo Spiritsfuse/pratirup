@@ -16,8 +16,6 @@ import {
 import { Segmented, Skeleton, cx } from './ui'
 
 function Wordmark() {
-  const { meta } = useApp()
-  const mv = meta?.model_version
   return (
     <Link to="/" className="flex items-center gap-2 text-ink no-underline hover:no-underline" aria-label="Pratirup home">
       <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
@@ -41,11 +39,6 @@ function Wordmark() {
       </svg>
       <span className="text-lg font-semibold tracking-tight">Pratirup</span>
       <span className="chip hidden !text-[11px] xs:inline-flex">research prototype</span>
-      {mv && (
-        <span className="chip !text-[11px]" title="Version of the forecasting model and alert policy that is running">
-          model v{mv}
-        </span>
-      )}
     </Link>
   )
 }
@@ -213,7 +206,7 @@ function Footer() {
             'Research prototype. Not a medical device. Forecasts are experimental and must be interpreted by a qualified clinician.'}
         </p>
         <p className="mt-2 text-xs">
-          Pratirup {meta ? `v${meta.version}` : ''} · Team Aflatoon, Scaler School of Technology · Data: ShanghaiT2DM, CC BY 4.0
+          Pratirup · Team Aflatoon, Scaler School of Technology · Data: ShanghaiT2DM, CC BY 4.0
         </p>
       </div>
     </footer>

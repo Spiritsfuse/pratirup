@@ -159,7 +159,7 @@ export function Robustness({ ev, letter }: { ev: Evaluation; letter: string }) {
   )
 }
 
-// ---------------------------------------------------------------- why v2
+// ---------------------------------------------------------------- why noise-augmented training
 
 type SeriesKey = 'v1' | 'v2' | 'pers'
 
@@ -177,8 +177,8 @@ export function NoiseExperiment({ ev }: { ev: Evaluation }) {
     return { sd, v1: v1?.mae, v2: v2?.mae, pers: v1?.mae_persistence ?? v2?.mae_persistence }
   })
   const label: Record<SeriesKey, string> = {
-    v1: 'v1 (trained on clean data)',
-    v2: 'v2 (noise-augmented training)',
+    v1: 'Trained on clean data only',
+    v2: 'Pratirup (noise-augmented training)',
     pers: 'Last value carried forward',
   }
   const color: Record<SeriesKey, string> = { v1: c.vhigh, v2: c.accent, pers: c.muted }
@@ -191,9 +191,9 @@ export function NoiseExperiment({ ev }: { ev: Evaluation }) {
   const trainSds = ne.train_noise_sd
   return (
     <div className="space-y-3 border-t border-line pt-5">
-      <Sub right={<BasisChip basis="dev_cv" />}>Why v2: accuracy under sensor noise (development patients)</Sub>
+      <Sub right={<BasisChip basis="dev_cv" />}>Why we train on noisy copies: accuracy under sensor noise (development patients)</Sub>
       <p className="max-w-3xl text-sm text-muted">
-        v1 was trained only on clean CGM and fell apart when the signal was noisy. v2 also trains on copies of the development
+        A model trained only on clean CGM falls apart when the signal is noisy. Pratirup also trains on copies of the development
         recordings with added noise
         {trainSds?.length ? ` (SD ${trainSds.join(', ')} mg/dL)` : ''} and sees a measure of how rough the recent trace is. Each
         point below re-scores the same development patients after adding random noise of the stated size to the readings.
@@ -211,7 +211,7 @@ export function NoiseExperiment({ ev }: { ev: Evaluation }) {
         </div>
         <ChartBox
           height={280}
-          label={`Line chart of +${h} minute MAE against added sensor noise for v1, v2 and last value carried forward`}
+          label={`Line chart of +${h} minute MAE against added sensor noise for clean-only training, Pratirup and last value carried forward`}
         >
           {(w) => (
             <LineChart width={w} height={280} data={data} margin={{ top: 8, right: 24, bottom: 22, left: 0 }}>
@@ -303,7 +303,7 @@ export function NoiseExperiment({ ev }: { ev: Evaluation }) {
 
         <div className="scroll-x mt-1">
           <table className="tbl">
-            <caption className="sr-only">+{h} minute MAE by added sensor noise, v1 and v2</caption>
+            <caption className="sr-only">+{h} minute MAE by added sensor noise, clean-only training and Pratirup</caption>
             <thead>
               <tr>
                 <th scope="col">
@@ -345,9 +345,9 @@ export function NoiseExperiment({ ev }: { ev: Evaluation }) {
         </div>
         <p className="mt-2 text-xs text-muted">
           A forecast is only useful while it stays below the last-value line; <span className="text-low">*</span> marks where it
-          does not. At +{h} min, v1 first falls behind last value at noise SD{' '}
+          does not. At +{h} min, the clean-only model first falls behind last value at noise SD{' '}
           {l1 != null ? <span className="num text-ink">{l1}</span> : 'none of the tested levels'}
-          {l1 != null ? ' mg/dL' : ''}; v2{' '}
+          {l1 != null ? ' mg/dL' : ''}; Pratirup{' '}
           {l2 != null ? (
             <>
               first does at SD <span className="num text-ink">{l2}</span> mg/dL
@@ -370,7 +370,7 @@ export function NoiseExperiment({ ev }: { ev: Evaluation }) {
           , and +30 min MAE at noise SD 10 improved by{' '}
           <span className="num text-ink">{(d.noisy10_30_relative_gain * 100).toFixed(1)}%</span>
           {d.noisy10_30_beats_persistence ? ' and beat last value' : ' but did not beat last value'}.{' '}
-          {d.adopt_v2 ? 'The rule adopted v2.' : 'The rule did not adopt v2.'}
+          {d.adopt_v2 ? 'The rule adopted noise-augmented training.' : 'The rule did not adopt noise-augmented training.'}
         </p>
       )}
     </div>

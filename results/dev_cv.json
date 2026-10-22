@@ -1891,7 +1891,7 @@
   "meta": {
     "stage": "dev",
     "generated_at": "2026-10-21T17:06:24",
-    "git_commit": "28cbcc6",
+    "git_commit": "7fc51c5",
     "dev_patients": 80,
     "dev_recordings": 89,
     "issuable_rows": 92065,

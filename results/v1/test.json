@@ -1833,7 +1833,7 @@
   "meta": {
     "stage": "test",
     "evaluated_at": "2026-10-21T00:47:48",
-    "git_commit": "0b5c075",
+    "git_commit": "1f8d05b",
     "test_patients": 20,
     "test_recordings": 20,
     "issuable_rows": 19627,

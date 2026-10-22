@@ -35,7 +35,7 @@ const KINDS: { key: 'hypo' | 'hyper2'; label: string }[] = [
   { key: 'hyper2', label: 'Above 250 mg/dL' },
 ]
 
-/** The consolidated v2 alert policy: what the app actually alerts on. */
+/** The consolidated alert policy: what the app actually alerts on. */
 export function AlertPolicy({ ev, basis }: { ev: Evaluation; basis: Basis }) {
   const { meta } = useApp()
   const ap = ev.alert_policy

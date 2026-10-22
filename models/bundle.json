@@ -1342,7 +1342,7 @@
   ],
   "meta": {
     "trained_at": "2026-10-21T17:06:24",
-    "git_commit": "28cbcc6",
+    "git_commit": "7fc51c5",
     "train_patients": 80,
     "train_rows": {
       "30": 91878,

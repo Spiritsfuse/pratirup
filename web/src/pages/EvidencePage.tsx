@@ -6,7 +6,6 @@ import { Ablation, Accuracy, Protocol, Uncertainty } from './evidence/Forecast'
 import { External, Importance, Personalisation, Subgroups } from './evidence/More'
 import { Robustness } from './evidence/Robustness'
 import type { Basis } from './evidence/shared'
-import { WhatChanged } from './evidence/Versions'
 
 const TOC_LINK =
   'block whitespace-nowrap rounded-md border border-line px-2.5 py-1 text-sm text-muted no-underline hover:bg-surface hover:text-ink hover:no-underline lg:border-0 lg:px-2'
@@ -45,10 +44,8 @@ export default function EvidencePage() {
     )
   }
 
-  const hasVersions = !!(ev.versions?.v1 && ev.versions.latest)
   // Section order, which also drives the (a), (b), ... letters and the contents list.
   const toc: [string, string][] = [
-    ...(hasVersions ? ([['v2', 'What changed in v2']] as [string, string][]) : []),
     ['protocol', 'Protocol'],
     ['accuracy', 'Forecast accuracy'],
     ['ablation', 'Data streams'],
@@ -74,7 +71,7 @@ export default function EvidencePage() {
           (hasTest
             ? `How well does the twin do on ${nTest} patients it never saw? Every number on this page is read from the benchmark file the server generated, not written by hand.`
             : 'How well does the twin do? Every number on this page is read from the benchmark file the server generated, not written by hand.') +
-          (ev.versions?.current != null ? ` Results are for model v${ev.versions.current}.` : '')
+''
         }
       />
 
@@ -104,7 +101,6 @@ export default function EvidencePage() {
         </nav>
 
         <div className="min-w-0 space-y-9">
-          {hasVersions && <WhatChanged ev={ev} letter={L('v2')} />}
           <Protocol ev={ev} letter={L('protocol')} />
           <Accuracy ev={ev} basis={basis} letter={L('accuracy')} />
           <Ablation ev={ev} basis={basis} letter={L('ablation')} />

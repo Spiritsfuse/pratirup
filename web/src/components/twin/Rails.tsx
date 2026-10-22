@@ -169,7 +169,7 @@ export function StateCard({ twin }: { twin: Twin }) {
               <Row label="Signal noise (roughness, 3 h)" hint="Roughness of the sensor trace over the last 3 hours: a proxy for sensor noise">
                 <span className="font-semibold">{round(s.data_quality.signal_roughness_mgdl, 1)}</span>{' '}
                 <span className="text-muted">mg/dL</span>
-                <span className="block font-sans text-xs text-muted">v2 is trained to stay accurate when this is high</span>
+                <span className="block font-sans text-xs text-muted">the model is trained to stay accurate when this is high</span>
               </Row>
             )}
           </dl>

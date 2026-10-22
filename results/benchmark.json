@@ -4,7 +4,7 @@
     "dev_stage": {
       "stage": "dev",
       "generated_at": "2026-10-21T17:06:24",
-      "git_commit": "28cbcc6",
+      "git_commit": "7fc51c5",
       "dev_patients": 80,
       "dev_recordings": 89,
       "issuable_rows": 92065,
@@ -13,7 +13,7 @@
     "test_stage": {
       "stage": "test",
       "evaluated_at": "2026-10-21T17:08:08",
-      "git_commit": "28cbcc6",
+      "git_commit": "7fc51c5",
       "test_patients": 20,
       "test_recordings": 20,
       "issuable_rows": 19627,

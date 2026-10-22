@@ -175,7 +175,6 @@ No external API, no LLM, no GPU and no secret is used anywhere.
   - adopting noise augmentation, under a rule written before the experiment.
 - **Early stopping** used held-out development patients only.
 - **Test scoring.** The test set is scored behind a lock file. v1 was scored once. v2 was scored once more, with the reason logged in [`results/runs.jsonl`](results/runs.jsonl). v1 results are kept unchanged in [`results/v1/`](results/v1/).
-- **Commit IDs.** The history was rewritten once to standardise co-authors. [`results/COMMIT_ID_MAP.md`](results/COMMIT_ID_MAP.md) maps the commit IDs cited in the locked results to the current ones.
 - **Leakage test.** [`tests/test_leakage.py`](tests/test_leakage.py) proves that no feature sees the future.
 
 **Metrics**
@@ -390,7 +389,7 @@ Wearable experiment (inside CGMacros, 5-fold participant-grouped CV): adding Fit
 | What-if | Model sensitivity to a changed meal or insulin log, with out-of-range warnings and a causal disclaimer |
 | Record | The clinical record and its raw FHIR R4 bundle |
 | Live stream | A held-out recording streamed one reading at a time into a live twin, as a CGM device would |
-| Evidence | Every metric, read from `results/benchmark.json`, including the v1 → v2 comparison |
+| Evidence | Every metric, read from `results/benchmark.json` |
 
 ## Run it
 
@@ -415,7 +414,6 @@ python -m pratirup.cli serve                           # http://127.0.0.1:8000
 python scripts/device_stream.py --recording 2026_0_20210916 --seconds-per-reading 1
 ```
 
-**Free public hosting.** Render (Blueprint in [`render.yaml`](render.yaml)) and other options are covered in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Reproduce every number
 
@@ -447,7 +445,7 @@ pratirup/api/          SQLite store and FastAPI app
 web/                   React clinician app
 models/                trained v2 bundle (LightGBM text files + JSON manifest) and comparison models
 results/               dev CV, locked test results (v2) and v1 archive, external validation, experiments, figures
-docs/                  architecture diagram, presentation, model and data cards, deployment guide, screenshots
+docs/                  architecture diagram, presentation, model and data cards, screenshots
 tests/                 leakage, labels, live-vs-replay parity
 .github/               CI and Dependabot
 ```
