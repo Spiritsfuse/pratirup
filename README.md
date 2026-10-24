@@ -196,7 +196,7 @@ Details: [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) · [`docs/DATA_CARD.md`](doc
 
 ## Demo video
 
-▶️ **Unlisted YouTube link: _to be added_** (15–20 minutes)
+▶️ [Watch the demo (unlisted, YouTube)](https://youtu.be/fS8vyPNoaWw)
 
 <!-- Replace the line above with: [Watch the demo (unlisted, YouTube)](https://youtu.be/XXXXXXXXXXX) -->
 
