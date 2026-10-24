@@ -3,6 +3,9 @@
 **A glucose digital twin for type 2 diabetes care teams.**
 
 [![ci](https://github.com/Spiritsfuse/pratirup/actions/workflows/ci.yml/badge.svg)](https://github.com/Spiritsfuse/pratirup/actions/workflows/ci.yml)
+[![Demo Video](https://img.shields.io/badge/YouTube-Demo%20Video%20(20%20min)-FF0000?style=flat&logo=youtube&logoColor=white)](https://youtu.be/fS8vyPNoaWw)
+[![Presentation](https://img.shields.io/badge/Slides-Presentation%20(PDF)-0D5F73?style=flat&logo=adobeacrobatreader&logoColor=white)](docs/Pratirup_Presentation.pdf)
+[![Architecture](https://img.shields.io/badge/Architecture-Diagram%20(PDF)-2E8B57?style=flat)](docs/architecture.pdf)
 
 Pratirup (प्रतिरूप, "counterpart") keeps a continuously updated model of each person with type 2 diabetes. It combines their clinical record with their CGM stream and logged medication and meals. For each patient it:
 
@@ -23,11 +26,41 @@ Pratirup (प्रतिरूप, "counterpart") keeps a continuously updated 
 | Healthcare use case | [Healthcare use case](#healthcare-use-case) |
 | Technical stack | [Technical stack](#technical-stack) |
 | AI/ML model or framework details | [AI/ML model and framework details](#aiml-model-and-framework-details) |
-| Demo video (unlisted YouTube) | [Demo video](#demo-video) |
+| Demo video (unlisted YouTube) | [Demo video](#demo-video) · [▶️ Watch (20 min)](https://youtu.be/fS8vyPNoaWw) |
 | Open-source licence details | [Open-source licence details](#open-source-licence-details) |
 | Architecture diagram (PDF/PPT) | [Architecture diagram](#architecture-diagram): [`docs/architecture.pdf`](docs/architecture.pdf) |
 | Presentation (PDF/PPT) | [Presentation](#presentation): [`docs/Pratirup_Presentation.pdf`](docs/Pratirup_Presentation.pdf) · [`.pptx`](docs/Pratirup_Presentation.pptx) |
 | All files and links publicly accessible | Every artefact is a file in this public repository. Nothing needs a login or a request. |
+
+---
+
+## Demo video
+
+<div align="center">
+  <a href="https://youtu.be/fS8vyPNoaWw" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.youtube.com/vi/fS8vyPNoaWw/maxresdefault.jpg" alt="Pratirup: Glucose Digital Twin Demonstration Video" width="100%" style="max-width: 820px; border-radius: 8px; border: 1px solid #d9e1e5; box-shadow: 0 4px 16px rgba(0,0,0,0.12);" />
+  </a>
+  <p>
+    <a href="https://youtu.be/fS8vyPNoaWw" target="_blank" rel="noopener noreferrer">
+      <img src="https://img.shields.io/badge/YouTube-Watch%20Demo%20Video%20(20%3A30)-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo on YouTube" />
+    </a>
+  </p>
+  <p><em>▶️ <strong><a href="https://youtu.be/fS8vyPNoaWw">Click above to watch the full demonstration (20 min) on YouTube</a></strong></em></p>
+</div>
+
+A full 20-minute demonstration and presentation of Pratirup by Team Aflatoon (Scaler School of Technology) for the **Happiest Health Digital Twin Challenge 2026**.
+
+The demonstration covers the clinical problem in India, real-data patient fusion (ShanghaiT2DM), a leak-free evaluation protocol, a live walkthrough of all 8 clinician screens, empirical results (26% MAE error reduction, Parkes A+B safety, noise robustness, alert consolidation, and US external validation), and transparent limitations.
+
+### Video walkthrough chapters
+
+| Time | Section | What is shown |
+|---|---|---|
+| **[0:00](https://youtu.be/fS8vyPNoaWw?t=0)** | **Part 1 · Problem & Clinical Vision** | India's 101M diabetes burden; why current CGM tools (Dexcom, LibreView) are retrospective or patient-only; the gap for a clinician-facing twin combining records with live streams; 6-part patient state and single-container architecture |
+| **[7:00](https://youtu.be/fS8vyPNoaWw?t=420)** | **Part 2 · Data, Evaluation & Models** | Real linked records + CGM in ShanghaiT2DM (no synthetic shortcuts); strict 80/20 patient-level split; 88 past-only features; LightGBM multi-horizon forecasts (+30, +60, +120 min); conformalized 80% intervals; TreeSHAP explanations; noise-robust training |
+| **[10:25](https://youtu.be/fS8vyPNoaWw?t=625)** | **Part 3 · Live System Walkthrough** | **Interactive clinician app demonstration:**<br>• `10:25` **Worklist:** Multi-patient triage ranking on shared demo clock<br>• `11:25` **Dynamic Triage:** Clock ticks every 15 min with rate-limited alerts<br>• `11:55` **Patient Twin (SH-2079):** Forecast bands, past forecast comparison overlay, risk scores, Kalman speed/noise state, TreeSHAP feature attributions<br>• `13:15` **Time Travel:** Replay past moments without future leakage<br>• `13:35` **AGP Report:** International consensus standard Ambulatory Glucose Profile (TIR, GMI, GRI)<br>• `14:10` **Forecast Ledger:** Continuous per-patient self-scoring of accuracy<br>• `14:40` **What-if Analysis:** Model sensitivity to meal/insulin adjustments (associational disclaimer)<br>• `15:10` **Clinical Record:** Linked EHR context & ABDM-compliant FHIR R4 resources<br>• `15:30` **Live Stream:** Device simulator streaming held-out readings via ingestion API<br>• `16:05` **Evidence Page:** In-app inspection of all locked experimental benchmarks |
+| **[16:50](https://youtu.be/fS8vyPNoaWw?t=1010)** | **Part 4 · Experimental Results** | 60-min MAE 14.90 vs 20.07 mg/dL (26% reduction); 100% in Parkes zones A+B; comparisons vs GRU and zero-shot Chronos-Bolt foundation model; honest ablation (personal history helps most; EHR/wearables don't sharpen short-term MAE); 81% conformal coverage; alerts down from 7.9 to 1.9/day catching 83% of lows; external validation on US CGMacros cohort |
+| **[19:10](https://youtu.be/fS8vyPNoaWw?t=1150)** | **Part 5 · Limitations & Regulatory Roadmap** | Transparent discussion of Chinese vs Indian cohort, retrospective bounds, SaMD classification under CDSCO Medical Device Rules 2017, DPDP Act 2023, and planned Indian clinic prospective pilot |
 
 ---
 
@@ -194,12 +227,6 @@ No external API, no LLM, no GPU and no secret is used anywhere.
 
 Details: [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) · [`docs/DATA_CARD.md`](docs/DATA_CARD.md).
 
-## Demo video
-
-▶️ [Watch the demo (unlisted, YouTube)](https://youtu.be/fS8vyPNoaWw)
-
-<!-- Replace the line above with: [Watch the demo (unlisted, YouTube)](https://youtu.be/XXXXXXXXXXX) -->
-
 ## Architecture diagram
 
 ![Pratirup architecture](docs/architecture.png)
@@ -210,6 +237,7 @@ PDF: [`docs/architecture.pdf`](docs/architecture.pdf), generated from code by [`
 
 - PDF: [`docs/Pratirup_Presentation.pdf`](docs/Pratirup_Presentation.pdf)
 - PowerPoint: [`docs/Pratirup_Presentation.pptx`](docs/Pratirup_Presentation.pptx)
+- Demo video walkthrough: [Watch the presentation and software demo on YouTube (20 min)](#demo-video)
 
 The deck is generated by [`docs/deck/build_deck.js`](docs/deck/build_deck.js), which reads every number from `results/benchmark.json`.
 
@@ -375,6 +403,8 @@ Wearable experiment (inside CGMacros, 5-fold participant-grouped CV): adding Fit
 - Genetic markers are not recorded in any dataset. The record shows them as "not recorded" (FHIR `dataAbsentReason`) and never invents them.
 
 ## The application
+
+> 💡 **Live video walkthrough:** See every screen below demonstrated live in the [Demo Video](#demo-video) (timestamps [10:25–16:50](https://youtu.be/fS8vyPNoaWw?t=625)).
 
 ![Worklist](docs/screenshots/worklist.png)
 ![Patient twin](docs/screenshots/twin.png)
